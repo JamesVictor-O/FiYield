@@ -78,7 +78,7 @@ NexYield makes it effortless:
 
 query OptimizeYields {
   yieldEvents(
-    where: { protocol_in: ["aPriori", "Ambient", "Multipli"] }
+    where: { protocol_in: ["aPriori", "Agit commit -m "Restore frontend as normal folder"mbient", "Multipli"] }
     orderBy: timestamp
     last: 50
   ) {
