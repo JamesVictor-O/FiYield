@@ -31,7 +31,7 @@ const HowItWorks = () => {
       number: "01",
       title: "Set Your Goal",
       description:
-        'Tell Yieldmaker what you want in plain language (e.g. "Earn 10% safely with $200").',
+        'Tell FiYield what you want in plain language (e.g. "Earn 10% safely with $200").',
       icon: (
         <svg
           className="w-6 h-6"
@@ -73,7 +73,7 @@ const HowItWorks = () => {
       number: "03",
       title: "Invest Instantly",
       description:
-        "Connect your Farcaster wallet and invest directly with the assets you already hold.",
+        "Connect your wallet and invest directly with the assets you already hold or your fiat.",
       icon: (
         <svg
           className="w-6 h-6"
@@ -94,7 +94,7 @@ const HowItWorks = () => {
       number: "04",
       title: "Earn & Relax",
       description:
-        "Yieldmaker monitors yields, rebalances automatically, and keeps your earnings growing.",
+        "FiYield monitors yields, rebalances automatically, and keeps your earnings growing.",
       icon: (
         <svg
           className="w-6 h-6"

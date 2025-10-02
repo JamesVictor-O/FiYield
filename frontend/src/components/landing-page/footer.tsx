@@ -89,7 +89,7 @@ const Footer = () => {
                   />
                 </div>
                 <span className="text-xl font-bold text-white font-pop">
-                  YieldMakers
+                  FiYield
                 </span>
               </div>
               <p className="text-sm text-gray-400 leading-relaxed mb-6 max-w-sm">
@@ -193,9 +193,8 @@ const Footer = () => {
         <div className="py-6 border-t border-white/10">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="text-sm text-gray-400">
-              © {currentYear} YieldMakers. All rights reserved.
+              © {currentYear} FiYield. All rights reserved.
             </div>
-            
           </div>
         </div>
       </div>
