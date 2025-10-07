@@ -13,7 +13,12 @@ contract MockAavePool {
     using SafeERC20 for IERC20;
 
     // Events
-    event Supply(address indexed asset, uint256 amount, address indexed onBehalfOf, uint16 referralCode);
+    event Supply(
+        address indexed asset,
+        uint256 amount,
+        address indexed onBehalfOf,
+        uint16 referralCode
+    );
     event Withdraw(address indexed asset, uint256 amount, address indexed to);
 
     // State variables
@@ -22,10 +27,10 @@ contract MockAavePool {
     mapping(address => uint256) public liquidityRate;
     mapping(address => uint256) public variableBorrowRate;
     mapping(address => uint256) public stableBorrowRate;
-    
+
     // Mock APY (5% = 500 basis points)
     uint256 public constant MOCK_APY = 500;
-    
+
     // Time tracking for yield calculation
     mapping(address => mapping(address => uint256)) public lastUpdateTime;
     mapping(address => mapping(address => uint256)) public userSupply;
@@ -53,15 +58,15 @@ contract MockAavePool {
         require(asset != address(0), "Invalid asset");
         require(amount > 0, "Amount must be greater than 0");
         require(onBehalfOf != address(0), "Invalid onBehalfOf");
-        
+
         // Transfer tokens from caller
         IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
-        
+
         // Update state
         totalSupply[asset] += amount;
         userSupply[asset][onBehalfOf] += amount;
         lastUpdateTime[asset][onBehalfOf] = block.timestamp;
-        
+
         emit Supply(asset, amount, onBehalfOf, referralCode);
     }
 
@@ -80,27 +85,27 @@ contract MockAavePool {
         require(asset != address(0), "Invalid asset");
         require(amount > 0, "Amount must be greater than 0");
         require(to != address(0), "Invalid to address");
-        
+
         uint256 userBalance = userSupply[asset][msg.sender];
         require(userBalance >= amount, "Insufficient balance");
-        
+
         // Calculate yield
         uint256 yield = _calculateYield(asset, msg.sender);
         uint256 totalWithdrawable = userBalance + yield;
-        
+
         uint256 actualAmount = amount;
         if (actualAmount > totalWithdrawable) {
             actualAmount = totalWithdrawable;
         }
-        
+
         // Update state
         totalSupply[asset] -= actualAmount;
         userSupply[asset][msg.sender] -= actualAmount;
         lastUpdateTime[asset][msg.sender] = block.timestamp;
-        
+
         // Transfer tokens to recipient
         IERC20(asset).safeTransfer(to, actualAmount);
-        
+
         emit Withdraw(asset, actualAmount, to);
         return actualAmount;
     }
@@ -115,7 +120,9 @@ contract MockAavePool {
      * @return ltv Loan to value ratio
      * @return healthFactor Health factor
      */
-    function getUserAccountData(address user)
+    function getUserAccountData(
+        address user
+    )
         external
         view
         returns (
@@ -134,9 +141,25 @@ contract MockAavePool {
     /**
      * @dev Get reserve data
      * @param asset Asset address
-     * @return Reserve data struct (simplified)
+     * @return configuration The reserve configuration
+     * @return liquidityIndex The liquidity index
+     * @return currentLiquidityRate The current liquidity rate
+     * @return variableBorrowIndex The variable borrow index
+     * @return currentVariableBorrowRate The current variable borrow rate
+     * @return currentStableBorrowRate The current stable borrow rate
+     * @return lastUpdateTimestamp The last update timestamp
+     * @return id The reserve id
+     * @return aTokenAddress The aToken address
+     * @return stableDebtTokenAddress The stable debt token address
+     * @return variableDebtTokenAddress The variable debt token address
+     * @return interestRateStrategyAddress The interest rate strategy address
+     * @return accruedToTreasury The accrued to treasury
+     * @return unbacked The unbacked amount
+     * @return isolationModeTotalDebt The isolation mode total debt
      */
-    function getReserveData(address asset)
+    function getReserveData(
+        address asset
+    )
         external
         view
         returns (
@@ -182,13 +205,16 @@ contract MockAavePool {
      * @param user User address
      * @return Yield amount
      */
-    function _calculateYield(address asset, address user) internal view returns (uint256) {
+    function _calculateYield(
+        address asset,
+        address user
+    ) internal view returns (uint256) {
         uint256 userBalance = userSupply[asset][user];
         if (userBalance == 0) return 0;
-        
+
         uint256 timeElapsed = block.timestamp - lastUpdateTime[asset][user];
         uint256 rate = liquidityRate[asset];
-        
+
         // Calculate yield: balance * rate * time / (365 days * 10000)
         return (userBalance * rate * timeElapsed) / (365 days * 10000);
     }
@@ -199,7 +225,10 @@ contract MockAavePool {
      * @param user User address
      * @return Total balance including yield
      */
-    function getUserBalance(address asset, address user) external view returns (uint256) {
+    function getUserBalance(
+        address asset,
+        address user
+    ) external view returns (uint256) {
         uint256 userBalance = userSupply[asset][user];
         uint256 yield = _calculateYield(asset, user);
         return userBalance + yield;

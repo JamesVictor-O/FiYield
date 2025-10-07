@@ -4,7 +4,7 @@ pragma solidity ^0.8.19;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title AaveStrategy
@@ -25,7 +25,7 @@ contract AaveStrategy is Ownable, ReentrancyGuard {
     address public immutable aavePool;
     address public immutable aToken;
     address public immutable vault;
-    
+
     uint256 public totalInvested;
     uint256 public totalWithdrawn;
     uint256 public totalYield;
@@ -39,12 +39,12 @@ contract AaveStrategy is Ownable, ReentrancyGuard {
         address _aavePool,
         address _aToken,
         address _vault
-    ) {
+    ) Ownable(msg.sender) {
         require(_asset != address(0), "Invalid asset");
         require(_aavePool != address(0), "Invalid Aave pool");
         require(_aToken != address(0), "Invalid aToken");
         require(_vault != address(0), "Invalid vault");
-        
+
         asset = IERC20(_asset);
         aavePool = _aavePool;
         aToken = _aToken;
@@ -58,21 +58,26 @@ contract AaveStrategy is Ownable, ReentrancyGuard {
     function invest(uint256 amount) external nonReentrant {
         require(msg.sender == vault, "Only vault can call");
         require(amount > 0, "Amount must be greater than 0");
-        
+
         // Check if we have enough balance
         uint256 balance = asset.balanceOf(address(this));
         require(balance >= amount, "Insufficient balance");
-        
+
         // Approve Aave pool to spend tokens
-        asset.safeApprove(aavePool, amount);
-        
+        asset.forceApprove(aavePool, amount);
+
         // Supply to Aave
-        (bool success,) = aavePool.call(
-            abi.encodeWithSignature("supply(address,uint256,address,uint16)", 
-                address(asset), amount, address(this), 0)
+        (bool success, ) = aavePool.call(
+            abi.encodeWithSignature(
+                "supply(address,uint256,address,uint16)",
+                address(asset),
+                amount,
+                address(this),
+                0
+            )
         );
         require(success, "Aave supply failed");
-        
+
         totalInvested += amount;
         emit Invested(amount);
     }
@@ -84,28 +89,32 @@ contract AaveStrategy is Ownable, ReentrancyGuard {
     function withdraw(uint256 amount) external nonReentrant {
         require(msg.sender == vault, "Only vault can call");
         require(amount > 0, "Amount must be greater than 0");
-        
+
         // Get current aToken balance
         uint256 aTokenBalance = IERC20(aToken).balanceOf(address(this));
         require(aTokenBalance > 0, "No aTokens to withdraw");
-        
+
         // Calculate how much to withdraw (convert to aToken amount)
         uint256 withdrawAmount = amount;
         if (withdrawAmount > aTokenBalance) {
             withdrawAmount = aTokenBalance;
         }
-        
+
         // Withdraw from Aave
-        (bool success,) = aavePool.call(
-            abi.encodeWithSignature("withdraw(address,uint256,address)", 
-                address(asset), withdrawAmount, address(this))
+        (bool success, ) = aavePool.call(
+            abi.encodeWithSignature(
+                "withdraw(address,uint256,address)",
+                address(asset),
+                withdrawAmount,
+                address(this)
+            )
         );
         require(success, "Aave withdraw failed");
-        
+
         // Transfer assets back to vault
         uint256 actualWithdrawn = asset.balanceOf(address(this));
         asset.safeTransfer(vault, actualWithdrawn);
-        
+
         totalWithdrawn += actualWithdrawn;
         emit Withdrawn(actualWithdrawn);
     }
@@ -116,32 +125,36 @@ contract AaveStrategy is Ownable, ReentrancyGuard {
      */
     function harvest() external nonReentrant returns (uint256 yieldAmount) {
         require(msg.sender == vault, "Only vault can call");
-        
+
         // Get current aToken balance
         uint256 aTokenBalance = IERC20(aToken).balanceOf(address(this));
         if (aTokenBalance == 0) return 0;
-        
+
         // Calculate yield (aToken balance - total invested)
         uint256 currentValue = aTokenBalance;
         uint256 investedValue = totalInvested - totalWithdrawn;
-        
+
         if (currentValue > investedValue) {
             yieldAmount = currentValue - investedValue;
-            
+
             // Withdraw yield
-            (bool success,) = aavePool.call(
-                abi.encodeWithSignature("withdraw(address,uint256,address)", 
-                    address(asset), yieldAmount, address(this))
+            (bool success, ) = aavePool.call(
+                abi.encodeWithSignature(
+                    "withdraw(address,uint256,address)",
+                    address(asset),
+                    yieldAmount,
+                    address(this)
+                )
             );
             require(success, "Aave yield withdrawal failed");
-            
+
             // Transfer yield to vault
             asset.safeTransfer(vault, yieldAmount);
-            
+
             totalYield += yieldAmount;
             emit Harvested(yieldAmount);
         }
-        
+
         return yieldAmount;
     }
 
@@ -169,19 +182,23 @@ contract AaveStrategy is Ownable, ReentrancyGuard {
     function emergencyWithdraw() external onlyOwner {
         uint256 aTokenBalance = IERC20(aToken).balanceOf(address(this));
         if (aTokenBalance > 0) {
-            (bool success,) = aavePool.call(
-                abi.encodeWithSignature("withdraw(address,uint256,address)", 
-                    address(asset), aTokenBalance, address(this))
+            (bool success, ) = aavePool.call(
+                abi.encodeWithSignature(
+                    "withdraw(address,uint256,address)",
+                    address(asset),
+                    aTokenBalance,
+                    address(this)
+                )
             );
             require(success, "Emergency withdrawal failed");
         }
-        
+
         // Transfer all assets to vault
         uint256 balance = asset.balanceOf(address(this));
         if (balance > 0) {
             asset.safeTransfer(vault, balance);
         }
-        
+
         emit EmergencyWithdrawExecuted();
     }
 
@@ -196,17 +213,27 @@ contract AaveStrategy is Ownable, ReentrancyGuard {
 
     /**
      * @dev Get strategy information
-     * @return Strategy details
+     * @return _asset The asset address
+     * @return _aavePool The Aave pool address
+     * @return _aToken The aToken address
+     * @return _totalInvested Total amount invested
+     * @return _totalWithdrawn Total amount withdrawn
+     * @return _totalYield Total yield generated
+     * @return _currentBalance Current balance
      */
-    function getStrategyInfo() external view returns (
-        address _asset,
-        address _aavePool,
-        address _aToken,
-        uint256 _totalInvested,
-        uint256 _totalWithdrawn,
-        uint256 _totalYield,
-        uint256 _currentBalance
-    ) {
+    function getStrategyInfo()
+        external
+        view
+        returns (
+            address _asset,
+            address _aavePool,
+            address _aToken,
+            uint256 _totalInvested,
+            uint256 _totalWithdrawn,
+            uint256 _totalYield,
+            uint256 _currentBalance
+        )
+    {
         return (
             address(asset),
             aavePool,
