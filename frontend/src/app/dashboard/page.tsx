@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 
 
-import MainDashboard from "@/components/dashboard/main-dashboard-backup";
+import MainDashboard from "@/components/dashboard/main-dashboard";
 import { User } from "@/types/index";
 import { useUserOnboarding } from "@/hooks/useUserOnboarding";
 

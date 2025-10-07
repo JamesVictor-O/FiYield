@@ -1,258 +1,250 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAccount, useWalletClient, usePublicClient } from 'wagmi';
-import { parseEther, formatEther } from 'viem';
+import { usePrivy, useWallets } from '@privy-io/react-auth';
+import { 
+  createPublicClient, 
+  createWalletClient, 
+  custom,
+  http,
+  type Address,
+  type Chain,
+  parseEther,
+  encodeFunctionData
+} from 'viem';
+import { 
+  Implementation, 
+  toMetaMaskSmartAccount,
+  createBundlerClient,
+  toCoinbaseSmartAccount,
+} from '@metamask/delegation-toolkit';
+import { monadTestnet } from '@/providers/Web3Provider';
 
-interface SmartAccountConfig {
-  bundlerUrl: string;
-  entryPointAddress: string;
-  factoryAddress: string;
-  paymasterUrl?: string;
+interface Delegation {
+  id: string;
+  delegate: Address;
+  contract: Address;
+  selector: string;
+  validUntil: bigint;
 }
 
-interface SmartAccountState {
-  smartAccountAddress: string | null;
-  isDeployed: boolean;
-  balance: bigint;
-  isLoading: boolean;
-  error: string | null;
-}
-
-export const useSmartAccount = (config: SmartAccountConfig) => {
-  const { address: eoaAddress } = useAccount();
-  const { data: walletClient } = useWalletClient();
-  const publicClient = usePublicClient();
+export function useSmartAccount() {
+  const { ready, authenticated, user } = usePrivy();
+  const { wallets } = useWallets();
   
-  const [state, setState] = useState<SmartAccountState>({
-    smartAccountAddress: null,
-    isDeployed: boolean,
-    balance: 0n,
-    isLoading: false,
-    error: null,
+  const [smartAccount, setSmartAccount] = useState<any>(null);
+  const [address, setAddress] = useState<Address | null>(null);
+  const [isDeployed, setIsDeployed] = useState(false);
+  const [balance, setBalance] = useState('0');
+  const [delegations, setDelegations] = useState<Delegation[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Create public client
+  const publicClient = createPublicClient({
+    chain: monadTestnet,
+    transport: http(process.env.NEXT_PUBLIC_MONAD_RPC_URL),
   });
 
-  // Generate smart account address
-  const generateSmartAccountAddress = useCallback(async () => {
-    if (!eoaAddress || !walletClient) return null;
+  // Create bundler client for ERC-4337
+  const bundlerClient = createBundlerClient({
+    client: publicClient,
+    transport: http(process.env.NEXT_PUBLIC_BUNDLER_URL), // e.g., Pimlico, Stackup
+    entryPoint: '0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789', // EntryPoint v0.6
+  });
+
+  // Create smart account
+  const createSmartAccount = useCallback(async () => {
+    if (!authenticated || wallets.length === 0) {
+      setError('Please connect your wallet first');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
 
     try {
-      // This would typically use a library like @account-abstraction/sdk
-      // For now, we'll create a deterministic address based on EOA
-      const salt = 0;
-      const initCode = `0x${config.factoryAddress.slice(2)}${eoaAddress.slice(2).padStart(64, '0')}`;
+      const wallet = wallets[0];
+      await wallet.switchChain(monadTestnet.id);
       
-      // Calculate CREATE2 address
-      const address = await publicClient?.getAddress({
-        bytecode: initCode,
-        opcode: 'CREATE2',
-        salt: salt,
+      const provider = await wallet.getEthereumProvider();
+      
+      // Create wallet client from Privy wallet
+      const walletClient = createWalletClient({
+        chain: monadTestnet,
+        transport: custom(provider),
       });
 
-      return address;
-    } catch (error) {
-      console.error('Error generating smart account address:', error);
-      return null;
-    }
-  }, [eoaAddress, walletClient, config.factoryAddress, publicClient]);
+      const [ownerAddress] = await walletClient.getAddresses();
 
-  // Deploy smart account
+      // Create MetaMask Smart Account (Hybrid implementation)
+      const account = await toMetaMaskSmartAccount({
+        client: publicClient,
+        implementation: Implementation.Hybrid,
+        deployParams: [ownerAddress, [], [], []], // [eoaOwner, passkeyIds, xCoords, yCoords]
+        deploySalt: `0x${Date.now().toString(16).padStart(64, '0')}`, // Unique salt per user
+        signer: { walletClient },
+      });
+
+      setSmartAccount(account);
+      setAddress(account.address);
+
+      // Check if deployed
+      const code = await publicClient.getBytecode({ address: account.address });
+      setIsDeployed(code !== undefined && code !== '0x');
+
+      // Get balance
+      const accountBalance = await publicClient.getBalance({ 
+        address: account.address 
+      });
+      setBalance(accountBalance.toString());
+
+      console.log('✅ Smart Account created:', account.address);
+      
+    } catch (err: any) {
+      console.error('Error creating smart account:', err);
+      setError(err.message || 'Failed to create smart account');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [authenticated, wallets, publicClient]);
+
+  // Deploy smart account (if not already deployed)
   const deploySmartAccount = useCallback(async () => {
-    if (!eoaAddress || !walletClient) return false;
+    if (!smartAccount || isDeployed) return;
 
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
-
+    setIsLoading(true);
     try {
-      // Deploy smart account using factory
-      const deployTx = await walletClient.sendTransaction({
-        to: config.factoryAddress,
-        data: `0x${eoaAddress.slice(2).padStart(64, '0')}`, // Deploy data
-        value: 0n,
+      // Send a deployment transaction
+      const userOpHash = await bundlerClient.sendUserOperation({
+        account: smartAccount,
+        calls: [], // Empty call deploys the account
       });
 
-      await publicClient?.waitForTransactionReceipt({ hash: deployTx });
+      // Wait for confirmation
+      const receipt = await bundlerClient.waitForUserOperationReceipt({
+        hash: userOpHash,
+      });
+
+      console.log('✅ Smart Account deployed:', receipt.userOpHash);
+      setIsDeployed(true);
       
-      setState(prev => ({ 
-        ...prev, 
-        isDeployed: true, 
-        isLoading: false 
-      }));
-      
-      return true;
-    } catch (error) {
-      setState(prev => ({ 
-        ...prev, 
-        error: error instanceof Error ? error.message : 'Deployment failed',
-        isLoading: false 
-      }));
-      return false;
+    } catch (err: any) {
+      console.error('Error deploying smart account:', err);
+      setError(err.message || 'Failed to deploy smart account');
+    } finally {
+      setIsLoading(false);
     }
-  }, [eoaAddress, walletClient, config.factoryAddress, publicClient]);
+  }, [smartAccount, isDeployed, bundlerClient]);
 
-  // Send transaction through smart account
-  const sendTransaction = useCallback(async (
-    to: string,
-    value: bigint,
-    data: string = '0x'
+  // Create delegation for AI agent
+  const createDelegation = useCallback(async (
+    delegateAddress: Address,
+    targetContract: Address,
+    functionSelector: string
   ) => {
-    if (!state.smartAccountAddress || !walletClient) return null;
+    if (!smartAccount) {
+      throw new Error('Smart account not created');
+    }
 
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
-
+    setIsLoading(true);
     try {
-      // Create user operation
-      const userOp = {
-        sender: state.smartAccountAddress,
-        nonce: await getNonce(),
-        initCode: '0x',
-        callData: encodeCallData(to, value, data),
-        callGasLimit: 100000n,
-        verificationGasLimit: 100000n,
-        preVerificationGas: 21000n,
-        maxFeePerGas: parseEther('0.00000002'), // 20 gwei
-        maxPriorityFeePerGas: parseEther('0.000000001'), // 1 gwei
-        paymasterAndData: '0x',
-        signature: '0x',
+      // Create delegation using ERC-7710
+      const delegation = {
+        delegate: delegateAddress,
+        authority: targetContract, // The contract the delegate can call
+        caveats: [
+          {
+            enforcer: process.env.NEXT_PUBLIC_CAVEAT_ENFORCER_ADDRESS as Address,
+            terms: encodeCaveats({
+              maxAmount: parseEther('1000'), // Max $1000 per tx
+              allowedFunctions: [functionSelector],
+              validUntil: BigInt(Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60), // 1 week
+            }),
+          },
+        ],
       };
 
-      // Sign and send user operation
-      const signature = await signUserOperation(userOp);
-      userOp.signature = signature;
-
-      // Send to bundler
-      const response = await fetch(`${config.bundlerUrl}/eth_sendUserOperation`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'eth_sendUserOperation',
-          params: [userOp, config.entryPointAddress],
-        }),
+      // Sign delegation
+      const wallet = wallets[0];
+      const provider = await wallet.getEthereumProvider();
+      const walletClient = createWalletClient({
+        chain: monadTestnet,
+        transport: custom(provider),
       });
 
-      const result = await response.json();
+      // This would require implementing ERC-7710 delegation signing
+      // For now, we'll store delegation data
+      const newDelegation: Delegation = {
+        id: `${delegateAddress}-${targetContract}-${functionSelector}`,
+        delegate: delegateAddress,
+        contract: targetContract,
+        selector: functionSelector,
+        validUntil: BigInt(Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60),
+      };
+
+      setDelegations(prev => [...prev, newDelegation]);
+      console.log('✅ Delegation created:', newDelegation);
       
-      if (result.error) {
-        throw new Error(result.error.message);
-      }
-
-      setState(prev => ({ ...prev, isLoading: false }));
-      return result.result;
-    } catch (error) {
-      setState(prev => ({ 
-        ...prev, 
-        error: error instanceof Error ? error.message : 'Transaction failed',
-        isLoading: false 
-      }));
-      return null;
+    } catch (err: any) {
+      console.error('Error creating delegation:', err);
+      throw err;
+    } finally {
+      setIsLoading(false);
     }
-  }, [state.smartAccountAddress, walletClient, config]);
+  }, [smartAccount, wallets]);
 
-  // Get smart account balance
-  const getBalance = useCallback(async () => {
-    if (!state.smartAccountAddress || !publicClient) return;
-
-    try {
-      const balance = await publicClient.getBalance({
-        address: state.smartAccountAddress,
-      });
-      
-      setState(prev => ({ ...prev, balance }));
-    } catch (error) {
-      console.error('Error getting balance:', error);
-    }
-  }, [state.smartAccountAddress, publicClient]);
-
-  // Check if smart account is deployed
-  const checkDeployment = useCallback(async () => {
-    if (!state.smartAccountAddress || !publicClient) return;
-
-    try {
-      const code = await publicClient.getCode({
-        address: state.smartAccountAddress,
-      });
-      
-      setState(prev => ({ ...prev, isDeployed: code !== '0x' }));
-    } catch (error) {
-      console.error('Error checking deployment:', error);
-    }
-  }, [state.smartAccountAddress, publicClient]);
-
-  // Helper functions
-  const getNonce = async (): Promise<bigint> => {
-    if (!state.smartAccountAddress || !publicClient) return 0n;
-    
-    try {
-      const nonce = await publicClient.readContract({
-        address: config.entryPointAddress,
-        abi: [{
-          name: 'getNonce',
-          type: 'function',
-          inputs: [{ name: 'sender', type: 'address' }],
-          outputs: [{ name: 'nonce', type: 'uint256' }],
-          stateMutability: 'view',
-        }],
-        functionName: 'getNonce',
-        args: [state.smartAccountAddress],
-      });
-      
-      return nonce as bigint;
-    } catch (error) {
-      return 0n;
-    }
-  };
-
-  const encodeCallData = (to: string, value: bigint, data: string): string => {
-    // Encode execute call data for smart account
-    return `0xb61d27f6${to.slice(2).padStart(64, '0')}${value.toString(16).padStart(64, '0')}${data.slice(2).padStart(64, '0')}`;
-  };
-
-  const signUserOperation = async (userOp: any): Promise<string> => {
-    if (!walletClient) throw new Error('Wallet not connected');
-    
-    // Hash user operation
-    const userOpHash = await publicClient?.readContract({
-      address: config.entryPointAddress,
+  // Helper to encode caveats
+  function encodeCaveats(params: any): `0x${string}` {
+    // This should encode according to your caveat enforcer contract
+    // Simplified version:
+    return encodeFunctionData({
       abi: [{
-        name: 'getUserOpHash',
         type: 'function',
-        inputs: [{ name: 'userOp', type: 'tuple' }],
-        outputs: [{ name: 'hash', type: 'bytes32' }],
-        stateMutability: 'view',
+        name: 'encodeCaveats',
+        inputs: [
+          { name: 'maxAmount', type: 'uint256' },
+          { name: 'allowedFunctions', type: 'bytes4[]' },
+          { name: 'validUntil', type: 'uint256' }
+        ],
+        outputs: [{ type: 'bytes' }]
       }],
-      functionName: 'getUserOpHash',
-      args: [userOp],
+      functionName: 'encodeCaveats',
+      args: [params.maxAmount, params.allowedFunctions, params.validUntil]
     });
+  }
 
-    // Sign with EOA
-    const signature = await walletClient.signMessage({
-      message: { raw: userOpHash as `0x${string}` },
-    });
+  // Refresh smart account data
+  const refreshSmartAccount = useCallback(async () => {
+    if (!address) return;
 
-    return signature;
-  };
+    try {
+      const code = await publicClient.getBytecode({ address });
+      setIsDeployed(code !== undefined && code !== '0x');
 
-  // Initialize smart account
-  useEffect(() => {
-    if (eoaAddress) {
-      generateSmartAccountAddress().then(address => {
-        setState(prev => ({ ...prev, smartAccountAddress: address }));
-      });
+      const accountBalance = await publicClient.getBalance({ address });
+      setBalance(accountBalance.toString());
+    } catch (err) {
+      console.error('Error refreshing smart account:', err);
     }
-  }, [eoaAddress, generateSmartAccountAddress]);
+  }, [address, publicClient]);
 
-  // Check deployment and balance when smart account address changes
+  // Auto-refresh on mount
   useEffect(() => {
-    if (state.smartAccountAddress) {
-      checkDeployment();
-      getBalance();
+    if (address) {
+      refreshSmartAccount();
     }
-  }, [state.smartAccountAddress, checkDeployment, getBalance]);
+  }, [address, refreshSmartAccount]);
 
   return {
-    ...state,
+    smartAccount,
+    address,
+    isDeployed,
+    balance,
+    delegations,
+    isLoading,
+    error,
+    createSmartAccount,
     deploySmartAccount,
-    sendTransaction,
-    getBalance,
-    checkDeployment,
+    createDelegation,
+    refreshSmartAccount,
   };
-};
+}

@@ -1,39 +1,89 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { usePrivy } from "@privy-io/react-auth";
-import { WalletConnectionFlow } from "../wallet/WalletConnectionFlow";
+import { SmartAccountSetup } from "../wallet/SmartAccountSetup";
 
 const Header = () => {
-  const { ready, authenticated, user, logout } = usePrivy();
+  const { ready, authenticated, user, login, logout } = usePrivy();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [showWalletModal, setShowWalletModal] = useState(false);
+  const [showSmartAccountModal, setShowSmartAccountModal] = useState(false);
+  const [smartAccountAddress, setSmartAccountAddress] = useState<string | null>(null);
 
   type MinimalWallet = { address?: string };
   type MinimalLinkedAccount = { type?: string; address?: string };
 
   const getDisplayAddress = (): string | undefined => {
-    const embeddedAddress = (user?.wallet as MinimalWallet | undefined)
-      ?.address;
+    // First check if user has smart account
+    if (smartAccountAddress) {
+      return `${smartAccountAddress.slice(0, 6)}...${smartAccountAddress.slice(-4)}`;
+    }
+
+    // Fallback to regular wallet address
+    const embeddedAddress = (user?.wallet as MinimalWallet | undefined)?.address;
     const linkedAddress = (
       user?.linkedAccounts as MinimalLinkedAccount[] | undefined
     )?.find((account) => account?.type === "wallet")?.address;
     const address = embeddedAddress || linkedAddress;
+    
     if (!address) return undefined;
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
+  // Load smart account address from storage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && authenticated) {
+      const savedAddress = localStorage.getItem(`smart_account_${user?.id}`);
+      if (savedAddress) {
+        setSmartAccountAddress(savedAddress);
+      }
+    }
+  }, [authenticated, user?.id]);
+
   const isConnected = ready && authenticated;
   const displayAddress = getDisplayAddress();
+  const hasSmartAccount = !!smartAccountAddress;
 
   const toggleMobileMenu = () => {
     setMobileMenuOpen(!mobileMenuOpen);
   };
 
-  const handleWalletSuccess = () => {
-    // User successfully connected, you can add any additional logic here
-    console.log('Wallet connected successfully');
+  const handleConnectClick = async () => {
+    if (!authenticated) {
+      // Step 1: User not logged in - trigger Privy login
+      await login();
+      // After login, modal will automatically show if no smart account exists
+    } else if (!hasSmartAccount) {
+      // Step 2: User logged in but no smart account - show setup modal
+      setShowSmartAccountModal(true);
+    }
+  };
+
+  // Auto-show smart account setup after Privy authentication
+  useEffect(() => {
+    if (authenticated && !hasSmartAccount && ready) {
+      // Small delay to ensure UI is ready
+      const timer = setTimeout(() => {
+        setShowSmartAccountModal(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [authenticated, hasSmartAccount, ready]);
+
+  const handleSmartAccountSuccess = () => {
+    console.log('Smart Account setup successful');
+  };
+
+  const handleLogout = async () => {
+    // Clear smart account data
+    if (typeof window !== 'undefined' && user?.id) {
+      localStorage.removeItem(`smart_account_${user.id}`);
+      localStorage.removeItem(`smart_account_type_${user.id}`);
+      localStorage.removeItem(`passkey_credential_${user.id}`);
+    }
+    setSmartAccountAddress(null);
+    await logout();
   };
 
   const navigationLinks = [
@@ -41,6 +91,24 @@ const Header = () => {
     { name: "How It Works", href: "#how-it-works" },
     { name: "About", href: "#about" },
   ];
+
+  const getButtonText = () => {
+    if (!isConnected) return "Get Started";
+    if (!hasSmartAccount) return "Setup Account";
+    return displayAddress ?? "Account";
+  };
+
+  const getButtonIcon = () => {
+    if (!isConnected) {
+      return <div className="w-2 h-2 bg-gray-400 rounded-full"></div>;
+    }
+    if (!hasSmartAccount) {
+      return (
+        <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+      );
+    }
+    return <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>;
+  };
 
   return (
     <>
@@ -80,21 +148,21 @@ const Header = () => {
             <div className="flex items-center gap-3">
               {/* Main CTA Button */}
               <div className="bg-white text-black px-4 sm:px-6 py-2 rounded-lg transition-all duration-300 hover:bg-white/90 active:scale-95">
-                {isConnected ? (
-                  <button onClick={logout} className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                {hasSmartAccount ? (
+                  <button onClick={handleLogout} className="flex items-center gap-2">
+                    {getButtonIcon()}
                     <span className="font-medium text-sm">
-                      {displayAddress ?? "Account"}
+                      {getButtonText()}
                     </span>
                   </button>
                 ) : (
                   <button 
-                    onClick={() => setShowWalletModal(true)} 
+                    onClick={handleConnectClick} 
                     className="flex items-center gap-2"
                   >
-                    <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                    {getButtonIcon()}
                     <span className="font-medium text-sm">
-                      Connect Wallet
+                      {getButtonText()}
                     </span>
                   </button>
                 )}
@@ -145,11 +213,12 @@ const Header = () => {
         </div>
       </header>
 
-      {/* Wallet Connection Modal */}
-      <WalletConnectionFlow
-        isOpen={showWalletModal}
-        onClose={() => setShowWalletModal(false)}
-        onSuccess={handleWalletSuccess}
+      {/* Smart Account Setup Modal */}
+      <SmartAccountSetup
+        isOpen={showSmartAccountModal}
+        onClose={() => setShowSmartAccountModal(false)}
+        onSuccess={handleSmartAccountSuccess}
+        onAddressCreated={setSmartAccountAddress}
       />
     </>
   );

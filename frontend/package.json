@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@metamask/accounts-controller": "^33.1.0",
+    "@metamask/delegation-toolkit": "^0.13.0",
     "@metamask/keyring-controller": "^23.1.0",
     "@metamask/sdk": "^0.33.1",
     "@privy-io/react-auth": "^3.0.1",
