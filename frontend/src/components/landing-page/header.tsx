@@ -20,6 +20,7 @@ const Header = () => {
       return `${smartAccountAddress.slice(0, 6)}...${smartAccountAddress.slice(-4)}`;
     }
 
+
     // Fallback to regular wallet address
     const embeddedAddress = (user?.wallet as MinimalWallet | undefined)?.address;
     const linkedAddress = (
@@ -30,6 +31,13 @@ const Header = () => {
     if (!address) return undefined;
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
+
+  console.log("smartAccountAddress", smartAccountAddress);
+  console.log("user", user);
+  console.log("ready", ready);
+  console.log("authenticated", authenticated);
+ 
+  console.log("getDisplayAddress", getDisplayAddress());
 
   // Load smart account address from storage on mount
   useEffect(() => {

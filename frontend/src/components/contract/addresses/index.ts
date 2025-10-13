@@ -1,25 +1,35 @@
-// Contract addresses for Celo Alfajores
-export  const CONTRACT_ADDRESSES = {
-    // Deployed contracts - V2 (Working Version)
-    YIELDMAKER_VAULT: "0xd1DE9b72508BCDF6914575a9E99D31a99413AC1F", // ✅ NEW - Working vault
-    SIMPLE_HOLD_STRATEGY: "0x50389e8ca7eA09AA04962667f4C4B8563AdaDefF", // ✅ NEW - Working strategy
-  
-  
-  
-    // Asset addresses
-    CUSD: "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1", // cUSD on Alfajores
-  
-    // Protocol addresses
-    // NOTE: Aave V3 is already live on Celo L2! Need to find actual contract addresses
-    AAVE_POOL: "0x0B51348AB44895539A22832A1E49eD11C648bE35",
-    AAVE_STRATEGY: "0x217129a6a9CA7CD2A0dbB42e4c9B93b7b2809f09",
-   
-    AAVE_POOL_ADDRESS_PROVIDER: "0x0000000000000000000000000000000000000000", // TODO: Get Aave V3 PoolAddressProvider on Celo L2
-   
-    COMPOUND_COMPTROLLER: "0x0000000000000000000000000000000000000000", // Set when deploying
-    YEARN_VAULT: "0x0000000000000000000000000000000000000000", // Set when deploying
-    UNISWAP_V3_POOL: "0x0000000000000000000000000000000000000000", // Set when deploying
-  } as const;
-  
-  export type ContractAddresses = typeof CONTRACT_ADDRESSES;
-  
+// Contract addresses for Monad Testnet
+export const CONTRACT_ADDRESSES = {
+  // Multi-Token Vaults - Deployed for each supported token
+  USDC_VAULT: "0x50888e2e57d8E17A5D0D3F72eFc71a239F6EEff6", // USDC Vault ✅
+  WBTC_VAULT: "0x265F78F4F74193D58387D3EE84AB7c95A90e3D49", // WBTC Vault ✅
+  CURR_VAULT: "0x0000000000000000000000000000000000000000", // CURR Vault - Pending deployment
+  MOCK_USDC_VAULT: "0x63F57C1588FdaE25c2300b2a36c90fd346C79966", // MockUSDC Vault (original) ✅
+
+  // Legacy contracts
+  FI_YIELD_VAULT: "0x63F57C1588FdaE25c2300b2a36c90fd346C79966", // Original vault (MockUSDC only)
+  AGENT_EXECUTOR: "0x450F647bBBcc258096846e923bD35E70672B4170", // Agent deployed ✅
+  AAVE_STRATEGY: "0x2f9b9B5d5eD1d288375B8D19A093A418D1977804", // Strategy deployed ✅
+  MOCK_AAVE_POOL: "0xC3854a5F6ff5002b0f0192A96339c1aD77b52AFC", // Mock pool deployed ✅
+  MOCK_USDC: "0xd455943dbc86A559A822AF08f5FDdD6B122E0748", // Mock USDC ✅
+
+  // Legacy names for backward compatibility
+  YIELDMAKER_VAULT: "0x63F57C1588FdaE25c2300b2a36c90fd346C79966", // Points to FI_YIELD_VAULT
+  SIMPLE_HOLD_STRATEGY: "0x2f9b9B5d5eD1d288375B8D19A093A418D1977804", // Points to AAVE_STRATEGY
+
+  // Asset addresses for Monad Testnet
+  USDC: "0x5d876d73f4441d5f2438b1a3e2a51771b337f27a", // Real USDC token
+  WRAPPED_BTC: "0x6bb379a2056d1304e73012b99338f8f581ee2e18", // Wrapped BTC
+  CURRANCES: "0xb5481b57ff4e23ea7d2fda70f3137b16d0d99118", // Currances token
+  MOCK_USDC: "0xd455943dbc86A559A822AF08f5FDdD6B122E0748", // Mock USDC for testing
+
+  // Protocol addresses for Monad Testnet
+  AAVE_POOL: "0x0000000000000000000000000000000000000000", // Mock Aave Pool for testing
+  AAVE_POOL_ADDRESS_PROVIDER: "0x0000000000000000000000000000000000000000", // Mock for testing
+
+  COMPOUND_COMPTROLLER: "0x0000000000000000000000000000000000000000", // Set when deploying
+  YEARN_VAULT: "0x0000000000000000000000000000000000000000", // Set when deploying
+  UNISWAP_V3_POOL: "0x0000000000000000000000000000000000000000", // Set when deploying
+} as const;
+
+export type ContractAddresses = typeof CONTRACT_ADDRESSES;

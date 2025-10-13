@@ -234,7 +234,6 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
                 </h3>
               </div>
             </div>
-            
           </div>
 
           {/* Active Strategy */}
@@ -266,7 +265,6 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
                 </h3>
               </div>
             </div>
-          
           </div>
         </div>
 

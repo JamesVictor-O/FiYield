@@ -9,7 +9,7 @@ optimizer_runs = 200
 via_ir = true
 
 [rpc_endpoints]
-monad_testnet = "https://testnet.monad.xyz"
+monad_testnet = "https://testnet-rpc.monad.xyz"
 
 # [etherscan]
 # monad_testnet = { key = "${MONAD_EXPLORER_API_KEY}" }

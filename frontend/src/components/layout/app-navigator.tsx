@@ -19,7 +19,7 @@ import {
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: BarChart3 },
   { name: "AI Chat", href: "/chat", icon: MessageSquare },
-  { name: "Portfolio", href: "/portfolio", icon: TrendingUp },
+  { name: "Portfolio", href: "/dashboard/portfolio", icon: TrendingUp },
   { name: "Security", href: "/security", icon: Shield },
   { name: "Settings", href: "/settings", icon: Settings },
 ];

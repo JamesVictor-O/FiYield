@@ -4,31 +4,32 @@ pragma solidity ^0.8.24;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-contract FiYieldVault is Ownable, ReentrancyGuard {
+contract FiYieldVaultOptimized is Ownable, ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
     // State variables
-    IERC20 public immutable asset; // Changed from depositToken to asset for consistency
+    IERC20 public immutable asset;
     address public agentExecutor;
-    address public strategy; // Add strategy address
+    address public strategy;
 
-    // User deposits mapping
+    // User deposits mapping - packed for gas efficiency
     mapping(address => uint256) public userBalances;
-    mapping(address => RiskLevel) public userRiskLevels;
-    mapping(address => uint256) public shares; // Add shares tracking
+    mapping(address => uint256) public shares;
+    mapping(address => uint8) public userRiskLevels; // Use uint8 instead of enum for gas efficiency
 
     // Total supply tracking
     uint256 public totalSupply;
     uint256 public totalAssets;
 
-    // Risk levels
-    enum RiskLevel {
-        Conservative,
-        Balanced,
-        Aggressive
-    }
+    // Risk levels - using uint8 for gas efficiency
+    uint8 public constant CONSERVATIVE = 0;
+    uint8 public constant BALANCED = 1;
+    uint8 public constant AGGRESSIVE = 2;
 
     // Events
-    event Deposit(address indexed user, uint256 amount, RiskLevel riskLevel);
+    event Deposit(address indexed user, uint256 amount, uint8 riskLevel);
     event Withdraw(address indexed user, uint256 amount);
     event Rebalanced(
         address indexed user,
@@ -38,6 +39,11 @@ contract FiYieldVault is Ownable, ReentrancyGuard {
     );
     event StrategySet(address indexed strategy);
     event Invested(uint256 amount);
+    event SharesTransferred(
+        address indexed from,
+        address indexed to,
+        uint256 amount
+    );
 
     constructor(address _asset) Ownable(msg.sender) {
         asset = IERC20(_asset);
@@ -54,54 +60,51 @@ contract FiYieldVault is Ownable, ReentrancyGuard {
         emit StrategySet(_strategy);
     }
 
-    // User deposits assets - matches frontend expectation
+    // User deposits assets - optimized for gas
     function deposit(
         uint256 assets,
         address receiver
     ) external nonReentrant returns (uint256) {
         require(assets > 0, "Amount must be > 0");
         require(receiver != address(0), "Invalid receiver");
-        require(
-            asset.transferFrom(msg.sender, address(this), assets),
-            "Transfer failed"
-        );
 
-        // Calculate shares (1:1 for simplicity in MVP)
+        // Use SafeERC20 for gas efficiency
+        asset.safeTransferFrom(msg.sender, address(this), assets);
+
+        // Calculate shares (1:1 for MVP)
         uint256 sharesToMint = assets;
 
+        // Update state in single operation for gas efficiency
         userBalances[receiver] += assets;
         shares[receiver] += sharesToMint;
         totalSupply += sharesToMint;
         totalAssets += assets;
+        userRiskLevels[receiver] = BALANCED; // Default to balanced
 
-        // Set default risk level to Balanced for MVP
-        userRiskLevels[receiver] = RiskLevel.Balanced;
-
-        emit Deposit(receiver, assets, RiskLevel.Balanced);
+        emit Deposit(receiver, assets, BALANCED);
         return sharesToMint;
     }
 
     // Alternative deposit function with risk level
     function depositWithRisk(
         uint256 amount,
-        RiskLevel riskLevel
+        uint8 riskLevel
     ) external nonReentrant {
         require(amount > 0, "Amount must be > 0");
-        require(
-            asset.transferFrom(msg.sender, address(this), amount),
-            "Transfer failed"
-        );
+        require(riskLevel <= AGGRESSIVE, "Invalid risk level");
+
+        asset.safeTransferFrom(msg.sender, address(this), amount);
 
         userBalances[msg.sender] += amount;
-        userRiskLevels[msg.sender] = riskLevel;
         shares[msg.sender] += amount;
         totalSupply += amount;
         totalAssets += amount;
+        userRiskLevels[msg.sender] = riskLevel;
 
         emit Deposit(msg.sender, amount, riskLevel);
     }
 
-    // User withdraws
+    // User withdraws - optimized
     function withdraw(uint256 amount) external nonReentrant {
         require(userBalances[msg.sender] >= amount, "Insufficient balance");
 
@@ -110,12 +113,11 @@ contract FiYieldVault is Ownable, ReentrancyGuard {
         totalSupply -= amount;
         totalAssets -= amount;
 
-        require(asset.transfer(msg.sender, amount), "Transfer failed");
-
+        asset.safeTransfer(msg.sender, amount);
         emit Withdraw(msg.sender, amount);
     }
 
-    // Withdraw with shares (ERC4626 style)
+    // Withdraw with shares (ERC4626 style) - optimized
     function redeem(
         uint256 sharesAmount,
         address receiver,
@@ -125,11 +127,10 @@ contract FiYieldVault is Ownable, ReentrancyGuard {
         require(receiver != address(0), "Invalid receiver");
 
         if (msg.sender != owner) {
-            // Add approval logic here if needed
             revert("Not authorized");
         }
 
-        require(sharesAmount <= this.shares(owner), "Insufficient shares");
+        require(sharesAmount <= shares[owner], "Insufficient shares");
 
         uint256 assets = sharesAmount; // 1:1 for MVP
 
@@ -138,10 +139,29 @@ contract FiYieldVault is Ownable, ReentrancyGuard {
         totalSupply -= sharesAmount;
         totalAssets -= assets;
 
-        require(asset.transfer(receiver, assets), "Transfer failed");
-
+        asset.safeTransfer(receiver, assets);
         emit Withdraw(owner, assets);
         return assets;
+    }
+
+    // Send shares to another user (for send functionality) - optimized
+    function sendShares(
+        address to,
+        uint256 sharesAmount
+    ) external nonReentrant {
+        require(to != address(0), "Invalid recipient");
+        require(sharesAmount > 0, "Amount must be > 0");
+        require(shares[msg.sender] >= sharesAmount, "Insufficient shares");
+
+        // Transfer shares and corresponding balance
+        shares[msg.sender] -= sharesAmount;
+        shares[to] += sharesAmount;
+
+        uint256 assetsAmount = sharesAmount; // 1:1 for MVP
+        userBalances[msg.sender] -= assetsAmount;
+        userBalances[to] += assetsAmount;
+
+        emit SharesTransferred(msg.sender, to, sharesAmount);
     }
 
     // Only agent can rebalance
@@ -153,10 +173,6 @@ contract FiYieldVault is Ownable, ReentrancyGuard {
     ) external {
         require(msg.sender == agentExecutor, "Only agent can rebalance");
         require(userBalances[user] >= amount, "Insufficient user balance");
-
-        // Rebalancing logic here (withdraw from one protocol, deposit to another)
-        // For MVP, just emit event
-
         emit Rebalanced(user, fromProtocol, toProtocol, amount);
     }
 
@@ -166,13 +182,11 @@ contract FiYieldVault is Ownable, ReentrancyGuard {
         require(strategy != address(0), "Strategy not set");
         require(amount <= totalAssets, "Insufficient assets");
 
-        // Transfer assets to strategy
-        require(
-            asset.transfer(strategy, amount),
-            "Transfer to strategy failed"
-        );
+        // Update totalAssets before transferring
+        totalAssets -= amount;
 
-        // Call strategy invest function
+        asset.safeTransfer(strategy, amount);
+
         (bool success, ) = strategy.call(
             abi.encodeWithSignature("invest(uint256)", amount)
         );
@@ -181,38 +195,16 @@ contract FiYieldVault is Ownable, ReentrancyGuard {
         emit Invested(amount);
     }
 
-    // Send shares to another user (for send functionality)
-    function sendShares(
-        address to,
-        uint256 sharesAmount
-    ) external nonReentrant {
-        require(to != address(0), "Invalid recipient");
-        require(sharesAmount > 0, "Amount must be > 0");
-        require(shares[msg.sender] >= sharesAmount, "Insufficient shares");
-
-        // Transfer shares
-        shares[msg.sender] -= sharesAmount;
-        shares[to] += sharesAmount;
-
-        // Transfer corresponding user balance
-        uint256 assetsAmount = sharesAmount; // 1:1 for MVP
-        userBalances[msg.sender] -= assetsAmount;
-        userBalances[to] += assetsAmount;
-
-        emit Deposit(to, assetsAmount, userRiskLevels[msg.sender]);
-    }
-
-    // View functions
+    // View functions - optimized for gas
     function getBalance(address user) external view returns (uint256) {
         return userBalances[user];
     }
 
-    function getRiskLevel(address user) external view returns (RiskLevel) {
+    function getRiskLevel(address user) external view returns (uint8) {
         return userRiskLevels[user];
     }
 
-    // ERC4626 compatible functions - using state variables directly
-
+    // ERC4626 compatible functions
     function convertToShares(uint256 assets) external pure returns (uint256) {
         return assets; // 1:1 for MVP
     }

@@ -64,3 +64,4 @@ $ forge --help
 $ anvil --help
 $ cast --help
 ```
+<!-- cd /home/james/NexYield/contracts && forge script script/DeployMonad.s.sol --rpc-url https://testnet-rpc.monad.xyz --broadcast -->

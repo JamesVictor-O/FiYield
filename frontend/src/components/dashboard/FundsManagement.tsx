@@ -44,21 +44,21 @@ const FundsManagement: React.FC<FundsManagementProps> = ({
         console.log("Parsed transactions:", rawTransactions);
 
         const transactions = rawTransactions.map((tx: Partial<Transaction>) => {
-          console.log(
-            "Processing transaction:",
-            tx,
-            "amount:",
-            tx.amount,
-            "type:",
-            typeof tx.amount
-          );
+          // console.log(
+          //   "Processing transaction:",
+          //   tx,
+          //   "amount:",
+          //   tx.amount,
+          //   "type:",
+          //   typeof tx.amount
+          // );
           return {
             ...tx,
             amount: Number(tx.amount) || 0, // Ensure amount is a valid number
             timestamp: new Date(tx.timestamp || Date.now()),
           };
         });
-        console.log("Final transactions:", transactions);
+        // console.log("Final transactions:", transactions);
         setRecentTransactions(transactions.slice(-5)); // Show last 5 transactions
       } catch (error) {
         console.error(
@@ -74,11 +74,11 @@ const FundsManagement: React.FC<FundsManagementProps> = ({
     type: "deposit" | "withdraw" | "send",
     amount: number
   ) => {
-    console.log("Adding transaction:", {
-      type,
-      amount,
-      amountType: typeof amount,
-    });
+    // console.log("Adding transaction:", {
+    //   type,
+    //   amount,
+    //   amountType: typeof amount,
+    // });
 
     const newTransaction: Transaction = {
       id: Date.now().toString(),
@@ -88,7 +88,7 @@ const FundsManagement: React.FC<FundsManagementProps> = ({
       status: "completed",
     };
 
-    console.log("Created transaction:", newTransaction);
+    // console.log("Created transaction:", newTransaction);
 
     const updatedTransactions = [newTransaction, ...recentTransactions].slice(
       0,
