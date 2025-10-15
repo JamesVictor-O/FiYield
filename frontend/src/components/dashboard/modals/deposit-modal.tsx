@@ -20,6 +20,7 @@ import {
   useTokenAllowance,
 } from "@/hooks/contract/useERC20";
 import { CONTRACT_ADDRESSES } from "@/components/contract/addresses";
+import { TokenSelector } from "./token-selector";
 
 interface DepositModalProps {
   isOpen: boolean;
@@ -37,12 +38,41 @@ const DepositModal: React.FC<DepositModalProps> = ({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [needsApproval, setNeedsApproval] = useState(false);
+  const [selectedToken, setSelectedToken] = useState(
+    "0x5D876D73f4441D5f2438B1A3e2A51771B337F27A" // Default to USDC
+  );
   const [pendingDeposit, setPendingDeposit] = useState<{
     amount: string;
     address: string;
+    decimals: number;
   } | null>(null);
 
   const { address } = useAccount();
+
+  // Get the correct vault address for the selected token
+  const getVaultAddress = (tokenAddress: string): string => {
+    const tokenMap: { [key: string]: string } = {
+      "0x5D876D73f4441D5f2438B1A3e2A51771B337F27A":
+        CONTRACT_ADDRESSES.USDC_VAULT, // USDC
+      "0x6BB379A2056d1304E73012b99338F8F581eE2E18":
+        CONTRACT_ADDRESSES.WBTC_VAULT, // WBTC
+      "0xB5481b57fF4e23eA7D2fda70f3137b16D0D99118":
+        CONTRACT_ADDRESSES.CURR_VAULT, // CURR (pending)
+      "0xd455943dbc86A559A822AF08f5FDdD6B122E0748":
+        CONTRACT_ADDRESSES.MOCK_USDC_VAULT, // MockUSDC
+    };
+
+    const vaultAddress = tokenMap[tokenAddress];
+
+    // Check if vault is deployed (not zero address)
+    if (vaultAddress === "0x0000000000000000000000000000000000000000") {
+      throw new Error("Vault not yet deployed for this token");
+    }
+
+    return vaultAddress;
+  };
+
+  const currentVaultAddress = getVaultAddress(selectedToken);
 
   // Smart contract hooks
   const {
@@ -51,7 +81,7 @@ const DepositModal: React.FC<DepositModalProps> = ({
     isConfirming: isDepositConfirming,
     isConfirmed: isDepositConfirmed,
     error: depositError,
-  } = useVaultDeposit();
+  } = useVaultDeposit(currentVaultAddress);
 
   const {
     approve,
@@ -59,17 +89,20 @@ const DepositModal: React.FC<DepositModalProps> = ({
     isConfirming: isApproveConfirming,
     isConfirmed: isApproveConfirmed,
     error: approveError,
-  } = useTokenApproval(CONTRACT_ADDRESSES.CUSD);
+  } = useTokenApproval(selectedToken);
 
-  // Get user's cUSD balance
-  const { formatted: formattedBalance, refetch: refetchBalance } =
-    useUserTokenBalance(CONTRACT_ADDRESSES.CUSD, address);
+  // Get user's token balance
+  const {
+    formatted: formattedBalance,
+    decimals: tokenDecimals,
+    refetch: refetchBalance,
+  } = useUserTokenBalance(selectedToken, address);
 
   // Check current allowance
   const { allowance, refetch: refetchAllowance } = useTokenAllowance(
-    CONTRACT_ADDRESSES.CUSD,
+    selectedToken,
     address || "0x0",
-    CONTRACT_ADDRESSES.YIELDMAKER_VAULT
+    currentVaultAddress
   );
 
   // Overall loading state
@@ -89,7 +122,7 @@ const DepositModal: React.FC<DepositModalProps> = ({
     // Check if user has enough balance
     const userBalance = parseFloat(formattedBalance);
     if (numValue > userBalance) {
-      setError(`Insufficient balance. You have ${formattedBalance} cUSD`);
+      setError(`Insufficient balance. You have ${formattedBalance} tokens`);
       return false;
     }
 
@@ -127,21 +160,28 @@ const DepositModal: React.FC<DepositModalProps> = ({
     async (amountToDeposit: string) => {
       try {
         await refetchAllowance();
-        const amountWei = parseEther(amountToDeposit);
+
+        // Parse amount based on token decimals
+        let amountWei: bigint;
+        if (tokenDecimals === 6) {
+          // For USDC (6 decimals)
+          amountWei = BigInt(Math.floor(parseFloat(amountToDeposit) * 1e6));
+        } else if (tokenDecimals === 8) {
+          // For WBTC (8 decimals)
+          amountWei = BigInt(Math.floor(parseFloat(amountToDeposit) * 1e8));
+        } else {
+          // For 18 decimals (default)
+          amountWei = parseEther(amountToDeposit);
+        }
+
         const needed = allowance < amountWei;
         setNeedsApproval(needed);
-        console.log("Approval check:", {
-          amount: amountToDeposit,
-          allowance: allowance.toString(),
-          amountWei: amountWei.toString(),
-          needsApproval: needed,
-        });
       } catch (err) {
         console.error("Error checking approval:", err);
         setNeedsApproval(true);
       }
     },
-    [allowance, refetchAllowance]
+    [allowance, refetchAllowance, tokenDecimals]
   );
 
   // Main deposit handler
@@ -159,17 +199,39 @@ const DepositModal: React.FC<DepositModalProps> = ({
         return;
       }
 
+      // Check user balance first
+      const userBalance = parseFloat(formattedBalance);
+      const depositAmount = parseFloat(amount);
+
+
+      if (depositAmount > userBalance) {
+        setError(
+          `Insufficient balance. You have ${userBalance.toFixed(6)} tokens`
+        );
+        return;
+      }
+
+      // Check if vault is deployed for the selected token
+      try {
+        getVaultAddress(selectedToken);
+      } catch {
+        setError(
+          "Vault not yet deployed for this token. Please try USDC or WBTC."
+        );
+        return;
+      }
+
       // Check if approval is needed
       await checkApprovalNeeded(amount);
 
       if (needsApproval) {
         // Trigger approval with vault address as spender
-        await approve(CONTRACT_ADDRESSES.YIELDMAKER_VAULT, amount);
+        await approve(currentVaultAddress, amount);
         // Store pending deposit to trigger after approval
-        setPendingDeposit({ amount, address });
+        setPendingDeposit({ amount, address, decimals: tokenDecimals });
       } else {
         // Proceed with deposit if approval is not needed
-        await deposit(amount, address);
+        await deposit(amount, address, tokenDecimals);
       }
     } catch (err) {
       console.error("Transaction error:", err);
@@ -184,33 +246,20 @@ const DepositModal: React.FC<DepositModalProps> = ({
   // Handle approval success - trigger deposit
   useEffect(() => {
     if (isApproveConfirmed && pendingDeposit) {
-      console.log("Approval confirmed, proceeding with deposit");
 
       // Wait a moment for blockchain state to update, then deposit
       const timer = setTimeout(() => {
-        deposit(pendingDeposit.amount, pendingDeposit.address);
+        deposit(
+          pendingDeposit.amount,
+          pendingDeposit.address,
+          pendingDeposit.decimals
+        );
         setPendingDeposit(null); // Clear pending state
       }, 2000);
 
       return () => clearTimeout(timer);
     }
   }, [isApproveConfirmed, pendingDeposit, deposit]);
-
-  // Handle deposit success
-  useEffect(() => {
-    if (isDepositConfirmed) {
-      console.log("Deposit confirmed");
-      setSuccess(true);
-      refetchBalance();
-
-      const timer = setTimeout(() => {
-        onSuccess(parseFloat(amount));
-        handleClose();
-      }, 1500);
-
-      return () => clearTimeout(timer);
-    }
-  }, [isDepositConfirmed, amount, onSuccess, refetchBalance]);
 
   // Handle errors
   useEffect(() => {
@@ -229,7 +278,6 @@ const DepositModal: React.FC<DepositModalProps> = ({
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
-      console.log("Modal opened, resetting state");
       setError("");
       setSuccess(false);
       setNeedsApproval(false);
@@ -244,7 +292,7 @@ const DepositModal: React.FC<DepositModalProps> = ({
     }
   }, [isOpen, address, refetchAllowance, refetchBalance]);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     if (!isLoading) {
       setAmount("");
       setError("");
@@ -253,7 +301,22 @@ const DepositModal: React.FC<DepositModalProps> = ({
       setPendingDeposit(null);
       onClose();
     }
-  };
+  }, [isLoading, onClose]);
+
+  // Handle deposit success
+  useEffect(() => {
+    if (isDepositConfirmed) {
+      setSuccess(true);
+      refetchBalance();
+
+      const timer = setTimeout(() => {
+        onSuccess(parseFloat(amount));
+        handleClose();
+      }, 1500);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isDepositConfirmed, amount, onSuccess, refetchBalance, handleClose]);
 
   const getStepMessage = () => {
     if (isApprovePending || isApproveConfirming) {
@@ -296,10 +359,25 @@ const DepositModal: React.FC<DepositModalProps> = ({
         </DialogHeader>
 
         <div className="space-y-6">
+          {/* Token Selection */}
+          <TokenSelector
+            selectedToken={selectedToken}
+            onTokenSelect={setSelectedToken}
+          />
+
+          {/* Info Message */}
+          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+            <p className="text-sm text-green-800">
+              <strong>✅ Multi-Token Support:</strong> You can now deposit USDC,
+              WBTC, or MockUSDC tokens. Each token has its own dedicated vault
+              for optimal yield generation. CURR vault is pending deployment.
+            </p>
+          </div>
+
           {/* Current Balance */}
           <div className="border border-gray-200 rounded-lg p-4">
             <p className="text-sm text-gray-500 font-pop mb-1">
-              Your cUSD Balance
+              Your Token Balance
             </p>
             <p className="text-2xl font-pop font-semibold text-gray-900">
               ${parseFloat(formattedBalance).toLocaleString()}

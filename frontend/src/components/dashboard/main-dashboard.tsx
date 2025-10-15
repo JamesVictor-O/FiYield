@@ -4,8 +4,6 @@ import { User } from "@/types";
 import WelcomeFlow from "./WelcomeFlow";
 import FundsManagement from "./FundsManagement";
 import StrategyManager from "../manager/StrategyManager";
-import { SmartAccountStatus } from "./SmartAccountStatus";
-import { SmartAccountModal } from "./modals/smart-account-modal";
 import { useVaultBalance, useVaultInfo } from "@/hooks/contract/useVault";
 import { useAvailableStrategies } from "@/hooks/contract/useStrategies";
 import { useMockAavePoolAPY } from "@/hooks/contract/useMockAavePool";
@@ -25,40 +23,76 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
 }) => {
   const [showWelcome, setShowWelcome] = useState(user.isNewUser);
   const [userInitialDeposit, setUserInitialDeposit] = useState(0);
-  const [showSmartAccountModal, setShowSmartAccountModal] = useState(false);
 
   // Smart contract hooks for real-time data
   const { balance: vaultBalance, isLoading: balanceLoading } =
     useVaultBalance();
-  const { totalAssets, strategy: currentStrategy } = useVaultInfo();
+  const { strategy: currentStrategy } = useVaultInfo();
   const { address } = useAccount();
 
   const availableStrategies = useAvailableStrategies();
 
   // Get real-time APY from our deployed MockAavePool
-  const { apyDisplay, isLoading: apyLoading } = useMockAavePoolAPY();
+  const {} = useMockAavePoolAPY();
 
   // Get Aave strategy balance
-  const { balanceFormatted: aaveStrategyBalance } = useAaveStrategyBalance();
+  const {} = useAaveStrategyBalance();
 
   // Convert vault balance to readable format - handle BigInt properly
   const vaultBalanceFormatted =
     vaultBalance && typeof vaultBalance === "bigint"
       ? parseFloat(formatEther(vaultBalance))
       : 0;
-  const totalAssetsFormatted =
-    totalAssets && typeof totalAssets === "bigint"
-      ? parseFloat(formatEther(totalAssets))
-      : 0;
 
-  // Calculate user balance and earnings
+  // Use real vault balance instead of mock balance - with proper default
   const userBalance = vaultBalanceFormatted || 0;
-  const realEarnings = Math.max(0, userBalance - userInitialDeposit);
 
-  // Calculate daily change (mock data for now)
-  const dailyChangePercent = 2.4;
+  // Load user's initial deposit from localStorage (or could be from blockchain events)
+  useEffect(() => {
+    if (address) {
+      const savedInitialDeposit = localStorage.getItem(
+        `initialDeposit_${address}`
+      );
+      if (savedInitialDeposit) {
+        setUserInitialDeposit(parseFloat(savedInitialDeposit));
+      } else {
+        // If no initial deposit saved, assume current balance is the initial deposit
+        // This handles existing users who already have deposits
+        if (vaultBalanceFormatted > 0) {
+          setUserInitialDeposit(vaultBalanceFormatted);
+          localStorage.setItem(
+            `initialDeposit_${address}`,
+            vaultBalanceFormatted.toString()
+          );
+        }
+      }
+    }
+  }, [address, vaultBalanceFormatted]);
 
-  const handleWelcomeComplete = (riskProfile: "conservative" | "moderate" | "aggressive") => {
+  // Calculate real earnings - with proper defaults
+  const realEarnings = Math.max(
+    0,
+    (userBalance || 0) - (userInitialDeposit || 0)
+  );
+
+  // Update initial deposit when user makes new deposits
+  const handleBalanceUpdate = (newBalance: number) => {
+    if (address && newBalance > userBalance) {
+      // User made a deposit, update initial deposit tracker
+      const additionalDeposit = newBalance - userBalance;
+      const newInitialDeposit = (userInitialDeposit || 0) + additionalDeposit;
+      setUserInitialDeposit(newInitialDeposit);
+      localStorage.setItem(
+        `initialDeposit_${address}`,
+        newInitialDeposit.toString()
+      );
+    }
+  };
+
+  const handleWelcomeComplete = (
+    riskProfile: "conservative" | "moderate" | "aggressive"
+  ) => {
+    user.riskProfile = riskProfile;
     setShowWelcome(false);
 
     // Mark onboarding as complete in the parent component
@@ -198,10 +232,36 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
             </div>
           </div>
 
-          {/* Smart Account Status */}
-          <SmartAccountStatus 
-            onSetupClick={() => setShowSmartAccountModal(true)}
-          />
+          {/* Active Strategy */}
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:border-white/20 transition-colors duration-300">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+                <svg
+                  className="w-5 h-5 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm text-gray-400 font-medium">
+                  Active Strategy
+                </p>
+                <h3 className="text-lg font-bold text-white font-pop">
+                  {availableStrategies.find(
+                    (s) => s.address === currentStrategy
+                  )?.name || "Simple Hold"}
+                </h3>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Main Content Grid */}
@@ -238,7 +298,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
                 userBalance={userBalance}
                 userInitialDeposit={userInitialDeposit}
                 realEarnings={realEarnings}
-                dailyChangePercent={dailyChangePercent}
+                onBalanceUpdate={handleBalanceUpdate}
               />
             </div>
           </div>
@@ -258,7 +318,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={1.5}
-                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                      d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
                     />
                   </svg>
                 </div>
@@ -275,129 +335,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
             </div>
           </div>
         </div>
-
-        {/* Recent Activity Section */}
-        <div className="mt-8">
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
-                <svg
-                  className="w-5 h-5 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-white font-pop">
-                  Recent Activity
-                </h2>
-                <p className="text-sm text-gray-400">
-                  Your latest transactions and updates
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex items-center gap-4 p-4 rounded-lg bg-white/5 border border-white/10">
-                <div className="w-8 h-8 rounded-full bg-green-400/20 flex items-center justify-center">
-                  <svg
-                    className="w-4 h-4 text-green-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                    />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-white">
-                    Deposit Received
-                  </p>
-                  <p className="text-xs text-gray-400">2 hours ago</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-medium text-green-400">+$500.00</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 p-4 rounded-lg bg-white/5 border border-white/10">
-                <div className="w-8 h-8 rounded-full bg-blue-400/20 flex items-center justify-center">
-                  <svg
-                    className="w-4 h-4 text-blue-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                    />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-white">
-                    Strategy Updated
-                  </p>
-                  <p className="text-xs text-gray-400">1 day ago</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-medium text-blue-400">
-                    Aave Strategy
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 p-4 rounded-lg bg-white/5 border border-white/10">
-                <div className="w-8 h-8 rounded-full bg-yellow-400/20 flex items-center justify-center">
-                  <svg
-                    className="w-4 h-4 text-yellow-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
-                    />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-white">
-                    Earnings Generated
-                  </p>
-                  <p className="text-xs text-gray-400">3 days ago</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-medium text-yellow-400">+$45.20</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
-
-      {/* Smart Account Modal */}
-      <SmartAccountModal
-        isOpen={showSmartAccountModal}
-        onClose={() => setShowSmartAccountModal(false)}
-      />
     </div>
   );
 };

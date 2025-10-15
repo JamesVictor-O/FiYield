@@ -3,8 +3,7 @@
 import { useState, useEffect } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 
-
-import MainDashboard from "@/components/dashboard/main-dashboard-backup";
+import MainDashboard from "@/components/dashboard/main-dashboard";
 import { User } from "@/types/index";
 import { useUserOnboarding } from "@/hooks/useUserOnboarding";
 
@@ -40,16 +39,10 @@ export default function DashboardPage() {
   useEffect(() => {
     if (isConnected && privyUser) {
       const newUser: User = {
-        id: privyUser.id,
         address: displayAddress || "",
+        balance: 0,
         isNewUser: isNewUser,
         riskProfile: riskProfile || "moderate",
-        totalDeposits: 0,
-        totalWithdrawals: 0,
-        currentBalance: 0,
-        totalEarnings: 0,
-        createdAt: new Date(),
-        updatedAt: new Date(),
       };
       setUser(newUser);
     } else {

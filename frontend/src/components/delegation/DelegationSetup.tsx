@@ -1,10 +1,19 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { createSmartAccount, getSmartAccount, getSmartAccountBalance } from '@/lib/metamask/smartAccount';
-import { createDelegation, createDepositDelegation, getActiveDelegations, isDelegationActive } from '@/lib/metamask/delegation';
-import { Button } from '../ui/button';
-import { Badge } from '../ui/badge';
+import { useState, useEffect, useCallback } from "react";
+import {
+  createSmartAccount,
+  getSmartAccount,
+  getSmartAccountBalance,
+} from "@/lib/metamask/smartAccount";
+import {
+  createDelegation,
+  createDepositDelegation,
+  getActiveDelegations,
+  isDelegationActive,
+} from "@/lib/metamask/delegation";
+import { Button } from "../ui/button";
+import { Badge } from "../ui/badge";
 
 interface DelegationSetupProps {
   vaultAddress: string;
@@ -12,49 +21,53 @@ interface DelegationSetupProps {
   onDelegationCreated?: (delegation: any) => void;
 }
 
-export function DelegationSetup({ 
-  vaultAddress, 
-  agentExecutorAddress, 
-  onDelegationCreated 
+export function DelegationSetup({
+  vaultAddress,
+  agentExecutorAddress,
+  onDelegationCreated,
 }: DelegationSetupProps) {
   const [smartAccount, setSmartAccount] = useState<string | null>(null);
-  const [smartAccountBalance, setSmartAccountBalance] = useState<string>('0');
+  const [smartAccountBalance, setSmartAccountBalance] = useState<string>("0");
   const [loading, setLoading] = useState(false);
   const [delegationCreated, setDelegationCreated] = useState(false);
-  const [depositDelegationCreated, setDepositDelegationCreated] = useState(false);
+  const [depositDelegationCreated, setDepositDelegationCreated] =
+    useState(false);
   const [activeDelegations, setActiveDelegations] = useState<any[]>([]);
 
-  // Check for existing smart account and delegations on mount
-  useEffect(() => {
-    checkExistingSetup();
-  }, []);
-
-  const checkExistingSetup = async () => {
+  const checkExistingSetup = useCallback(async () => {
     try {
       // Check for existing smart account
       const existingAccount = await getSmartAccount();
       if (existingAccount) {
         setSmartAccount(existingAccount);
-        
+
         // Get balance
         const balance = await getSmartAccountBalance(existingAccount);
         setSmartAccountBalance(balance);
-        
+
         // Check for existing delegations
         const delegations = await getActiveDelegations(existingAccount);
         setActiveDelegations(delegations);
-        
+
         // Check if rebalance delegation exists
-        const hasRebalanceDelegation = await isDelegationActive(existingAccount, agentExecutorAddress);
+        const hasRebalanceDelegation = await isDelegationActive(
+          existingAccount,
+          agentExecutorAddress
+        );
         setDelegationCreated(hasRebalanceDelegation);
-        
+
         // Check if deposit delegation exists (you might want to implement this check)
         setDepositDelegationCreated(false); // Implement based on your needs
       }
     } catch (error) {
-      console.error('Error checking existing setup:', error);
+      console.error("Error checking existing setup:", error);
     }
-  };
+  }, [agentExecutorAddress]);
+
+  // Check for existing smart account and delegations on mount
+  useEffect(() => {
+    checkExistingSetup();
+  }, [checkExistingSetup]);
 
   const handleCreateSmartAccount = async () => {
     setLoading(true);
@@ -69,14 +82,13 @@ export function DelegationSetup({
       }
 
       setSmartAccount(account);
-      
+
       // Get balance
       const balance = await getSmartAccountBalance(account);
       setSmartAccountBalance(balance);
-      
     } catch (error) {
-      console.error('Error creating smart account:', error);
-      alert('Failed to create Smart Account');
+      console.error("Error creating smart account:", error);
+      alert("Failed to create Smart Account");
     } finally {
       setLoading(false);
     }
@@ -95,28 +107,26 @@ export function DelegationSetup({
         7 * 24 * 60 * 60 // 1 week
       );
 
-      console.log('Rebalance delegation created:', delegation);
       setDelegationCreated(true);
-      
+
       // Store delegation data for AI agent to use
-      await fetch('/api/delegation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      await fetch("/api/delegation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           smartAccount,
           delegation,
-          type: 'rebalance',
+          type: "rebalance",
         }),
       });
 
       // Update active delegations
       await checkExistingSetup();
-      
+
       onDelegationCreated?.(delegation);
-      
     } catch (error) {
-      console.error('Error creating rebalance delegation:', error);
-      alert('Failed to create rebalance delegation');
+      console.error("Error creating rebalance delegation:", error);
+      alert("Failed to create rebalance delegation");
     } finally {
       setLoading(false);
     }
@@ -135,26 +145,24 @@ export function DelegationSetup({
         30 * 24 * 60 * 60 // 30 days
       );
 
-      console.log('Deposit delegation created:', delegation);
       setDepositDelegationCreated(true);
-      
+
       // Store delegation data
-      await fetch('/api/delegation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      await fetch("/api/delegation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           smartAccount,
           delegation,
-          type: 'deposit',
+          type: "deposit",
         }),
       });
 
       // Update active delegations
       await checkExistingSetup();
-      
     } catch (error) {
-      console.error('Error creating deposit delegation:', error);
-      alert('Failed to create deposit delegation');
+      console.error("Error creating deposit delegation:", error);
+      alert("Failed to create deposit delegation");
     } finally {
       setLoading(false);
     }
@@ -183,14 +191,15 @@ export function DelegationSetup({
               Step 1: Create Smart Account
             </h3>
             <p className="text-sm text-blue-800 font-pop mb-4">
-              A Smart Account enables advanced features like automated transactions and AI delegation.
+              A Smart Account enables advanced features like automated
+              transactions and AI delegation.
             </p>
             <Button
               onClick={handleCreateSmartAccount}
               disabled={loading}
               className="bg-blue-600 hover:bg-blue-700 text-white font-pop"
             >
-              {loading ? 'Creating...' : 'Create Smart Account'}
+              {loading ? "Creating..." : "Create Smart Account"}
             </Button>
           </div>
         </div>
@@ -207,7 +216,9 @@ export function DelegationSetup({
               </Badge>
             </div>
             <p className="text-sm text-gray-600 font-pop mb-1">Address:</p>
-            <p className="font-mono text-sm text-gray-900 break-all">{smartAccount}</p>
+            <p className="font-mono text-sm text-gray-900 break-all">
+              {smartAccount}
+            </p>
             <p className="text-sm text-gray-600 font-pop mt-2">
               Balance: {formatBalance(smartAccountBalance)} MON
             </p>
@@ -218,16 +229,19 @@ export function DelegationSetup({
             <h3 className="text-lg font-pop font-semibold text-gray-900">
               Step 2: Grant Rebalancing Permissions
             </h3>
-            
+
             {!delegationCreated ? (
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                 <p className="text-gray-600 font-pop mb-4">
-                  Allow NexYield AI to automatically rebalance your portfolio for optimal yields.
+                  Allow NexYield AI to automatically rebalance your portfolio
+                  for optimal yields.
                 </p>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   <div className="space-y-2">
-                    <h4 className="font-pop font-medium text-gray-900">✅ Allowed Actions:</h4>
+                    <h4 className="font-pop font-medium text-gray-900">
+                      ✅ Allowed Actions:
+                    </h4>
                     <ul className="text-sm space-y-1 text-gray-600 font-pop">
                       <li>• Rebalance between protocols</li>
                       <li>• Optimize yield strategies</li>
@@ -235,7 +249,9 @@ export function DelegationSetup({
                     </ul>
                   </div>
                   <div className="space-y-2">
-                    <h4 className="font-pop font-medium text-gray-900">🛡️ Safety Limits:</h4>
+                    <h4 className="font-pop font-medium text-gray-900">
+                      🛡️ Safety Limits:
+                    </h4>
                     <ul className="text-sm space-y-1 text-gray-600 font-pop">
                       <li>• Max $1,000 per transaction</li>
                       <li>• Valid for 1 week</li>
@@ -250,7 +266,9 @@ export function DelegationSetup({
                   disabled={loading}
                   className="w-full sm:w-auto bg-gray-900 hover:bg-gray-800 text-white font-pop"
                 >
-                  {loading ? 'Creating Delegation...' : 'Grant Rebalancing Permissions'}
+                  {loading
+                    ? "Creating Delegation..."
+                    : "Grant Rebalancing Permissions"}
                 </Button>
               </div>
             ) : (
@@ -264,7 +282,8 @@ export function DelegationSetup({
                   </span>
                 </div>
                 <p className="text-sm text-gray-600 font-pop">
-                  AI agent can now optimize your yields automatically within the set limits.
+                  AI agent can now optimize your yields automatically within the
+                  set limits.
                 </p>
               </div>
             )}
@@ -275,16 +294,19 @@ export function DelegationSetup({
             <h3 className="text-lg font-pop font-semibold text-gray-900">
               Step 3: Grant Deposit Permissions (Optional)
             </h3>
-            
+
             {!depositDelegationCreated ? (
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                 <p className="text-gray-600 font-pop mb-4">
-                  Allow AI to automatically deposit additional funds when opportunities arise.
+                  Allow AI to automatically deposit additional funds when
+                  opportunities arise.
                 </p>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   <div className="space-y-2">
-                    <h4 className="font-pop font-medium text-gray-900">✅ Allowed Actions:</h4>
+                    <h4 className="font-pop font-medium text-gray-900">
+                      ✅ Allowed Actions:
+                    </h4>
                     <ul className="text-sm space-y-1 text-gray-600 font-pop">
                       <li>• Deposit additional funds</li>
                       <li>• Compound earnings</li>
@@ -292,7 +314,9 @@ export function DelegationSetup({
                     </ul>
                   </div>
                   <div className="space-y-2">
-                    <h4 className="font-pop font-medium text-gray-900">🛡️ Safety Limits:</h4>
+                    <h4 className="font-pop font-medium text-gray-900">
+                      🛡️ Safety Limits:
+                    </h4>
                     <ul className="text-sm space-y-1 text-gray-600 font-pop">
                       <li>• Max $5,000 per deposit</li>
                       <li>• Valid for 30 days</li>
@@ -307,7 +331,9 @@ export function DelegationSetup({
                   disabled={loading}
                   className="w-full sm:w-auto bg-gray-900 hover:bg-gray-800 text-white font-pop"
                 >
-                  {loading ? 'Creating Delegation...' : 'Grant Deposit Permissions'}
+                  {loading
+                    ? "Creating Delegation..."
+                    : "Grant Deposit Permissions"}
                 </Button>
               </div>
             ) : (
@@ -321,7 +347,8 @@ export function DelegationSetup({
                   </span>
                 </div>
                 <p className="text-sm text-gray-600 font-pop">
-                  AI agent can now automatically deposit funds when profitable opportunities are detected.
+                  AI agent can now automatically deposit funds when profitable
+                  opportunities are detected.
                 </p>
               </div>
             )}
@@ -335,9 +362,12 @@ export function DelegationSetup({
               </h4>
               <div className="space-y-2">
                 {activeDelegations.map((delegation, index) => (
-                  <div key={index} className="flex items-center justify-between text-sm">
+                  <div
+                    key={index}
+                    className="flex items-center justify-between text-sm"
+                  >
                     <span className="font-pop text-gray-600">
-                      {delegation.type || 'Unknown Type'}
+                      {delegation.type || "Unknown Type"}
                     </span>
                     <Badge className="bg-green-100 text-green-800 border-green-200 font-pop">
                       Active

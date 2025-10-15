@@ -1,164 +1,63 @@
 import { useReadContract } from "wagmi";
+import { formatEther } from "viem";
 import { CONTRACT_ADDRESSES } from "@/components/contract/addresses";
+import MockAavePoolABI from "@/components/contract/abis/MockAavePool.json";
 
-// ABI for our MockAavePool contract
-const MOCK_AAVE_POOL_ABI = [
-  {
-    type: "function",
-    name: "getCurrentAPY",
-    inputs: [{ name: "asset", type: "address", internalType: "address" }],
-    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
-    stateMutability: "view",
-  },
-  {
-    type: "function",
-    name: "getUserBalance",
-    inputs: [
-      { name: "asset", type: "address", internalType: "address" },
-      { name: "user", type: "address", internalType: "address" },
-    ],
-    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
-    stateMutability: "view",
-  },
-  {
-    type: "function",
-    name: "getReserveData",
-    inputs: [{ name: "asset", type: "address", internalType: "address" }],
-    outputs: [
-      {
-        name: "",
-        type: "tuple",
-        internalType: "struct DataTypes.ReserveData",
-        components: [
-          {
-            name: "configuration",
-            type: "tuple",
-            internalType: "struct DataTypes.ReserveConfigurationMap",
-            components: [
-              { name: "data", type: "uint256", internalType: "uint256" },
-            ],
-          },
-          { name: "liquidityIndex", type: "uint128", internalType: "uint128" },
-          {
-            name: "currentLiquidityRate",
-            type: "uint128",
-            internalType: "uint128",
-          },
-          {
-            name: "variableBorrowIndex",
-            type: "uint128",
-            internalType: "uint128",
-          },
-          {
-            name: "currentVariableBorrowRate",
-            type: "uint128",
-            internalType: "uint128",
-          },
-          {
-            name: "currentStableBorrowRate",
-            type: "uint128",
-            internalType: "uint128",
-          },
-          {
-            name: "lastUpdateTimestamp",
-            type: "uint40",
-            internalType: "uint40",
-          },
-          { name: "id", type: "uint16", internalType: "uint16" },
-          { name: "aTokenAddress", type: "address", internalType: "address" },
-          {
-            name: "stableDebtTokenAddress",
-            type: "address",
-            internalType: "address",
-          },
-          {
-            name: "variableDebtTokenAddress",
-            type: "address",
-            internalType: "address",
-          },
-          {
-            name: "interestRateStrategyAddress",
-            type: "address",
-            internalType: "address",
-          },
-          {
-            name: "accruedToTreasury",
-            type: "uint128",
-            internalType: "uint128",
-          },
-          { name: "unbacked", type: "uint128", internalType: "uint128" },
-          {
-            name: "isolationModeTotalDebt",
-            type: "uint128",
-            internalType: "uint128",
-          },
-        ],
-      },
-    ],
-    stateMutability: "view",
-  },
-] as const;
+// Use the generated ABI from deployed MockAavePool contract
+const MOCK_AAVE_POOL_ABI = MockAavePoolABI as any;
 
-// Hook to get current APY from MockAavePool
-export function useMockAavePoolAPY() {
-  const { data, isError, isLoading, refetch } = useReadContract({
-    address: CONTRACT_ADDRESSES.AAVE_POOL as `0x${string}`,
+export function useMockAavePoolInfo() {
+  const { data: currentAPY } = useReadContract({
+    address: CONTRACT_ADDRESSES.MOCK_AAVE_POOL,
     abi: MOCK_AAVE_POOL_ABI,
     functionName: "getCurrentAPY",
-    args: [CONTRACT_ADDRESSES.CUSD as `0x${string}`],
+    args: [CONTRACT_ADDRESSES.MOCK_USDC],
   });
 
-  return {
-    apy: data || BigInt(0),
-    apyFormatted: data ? Number(data) / 100 : 0, // Convert basis points to percentage
-    apyDisplay: data ? `${(Number(data) / 100).toFixed(1)}%` : "0.0%",
-    isError,
-    isLoading,
-    refetch,
-  };
-}
-
-// Hook to get user balance in the pool
-export function useMockAavePoolUserBalance(userAddress: string) {
-  const { data, isError, isLoading, refetch } = useReadContract({
-    address: CONTRACT_ADDRESSES.AAVE_POOL as `0x${string}`,
-    abi: MOCK_AAVE_POOL_ABI,
-    functionName: "getUserBalance",
-    args: [
-      CONTRACT_ADDRESSES.CUSD as `0x${string}`,
-      userAddress as `0x${string}`,
-    ],
-    query: {
-      enabled: !!userAddress,
-    },
-  });
-
-  return {
-    balance: data || BigInt(0),
-    balanceFormatted: data ? Number(data) / 1e18 : 0,
-    isError,
-    isLoading,
-    refetch,
-  };
-}
-
-// Hook to get reserve data
-export function useMockAavePoolReserveData() {
-  const { data, isError, isLoading, refetch } = useReadContract({
-    address: CONTRACT_ADDRESSES.AAVE_POOL as `0x${string}`,
+  const { data: reserveData } = useReadContract({
+    address: CONTRACT_ADDRESSES.MOCK_AAVE_POOL,
     abi: MOCK_AAVE_POOL_ABI,
     functionName: "getReserveData",
-    args: [CONTRACT_ADDRESSES.CUSD as `0x${string}`],
+    args: [CONTRACT_ADDRESSES.MOCK_USDC],
   });
 
   return {
-    reserveData: data,
-    aTokenAddress: data?.aTokenAddress,
-    liquidityIndex: data?.liquidityIndex,
-    currentLiquidityRate: data?.currentLiquidityRate,
-    lastUpdateTimestamp: data?.lastUpdateTimestamp,
-    isError,
+    currentAPY: currentAPY || BigInt(0),
+    reserveData: reserveData || {
+      configuration: BigInt(0),
+      liquidityIndex: BigInt(0),
+      currentLiquidityRate: BigInt(0),
+      variableBorrowIndex: BigInt(0),
+      currentVariableBorrowRate: BigInt(0),
+      currentStableBorrowRate: BigInt(0),
+      lastUpdateTimestamp: BigInt(0),
+      id: BigInt(0),
+      aTokenAddress: "0x0000000000000000000000000000000000000000",
+      stableDebtTokenAddress: "0x0000000000000000000000000000000000000000",
+      variableDebtTokenAddress: "0x0000000000000000000000000000000000000000",
+      interestRateStrategyAddress: "0x0000000000000000000000000000000000000000",
+      accruedToTreasury: BigInt(0),
+      unbacked: BigInt(0),
+      isolationModeTotalDebt: BigInt(0),
+    },
+  };
+}
+
+export function useMockAavePoolAPY() {
+  const { data: currentAPY, isLoading } = useReadContract({
+    address: CONTRACT_ADDRESSES.MOCK_AAVE_POOL,
+    abi: MOCK_AAVE_POOL_ABI,
+    functionName: "getCurrentAPY",
+    args: [CONTRACT_ADDRESSES.MOCK_USDC],
+  });
+
+  const apyDisplay = currentAPY
+    ? (parseFloat(formatEther(currentAPY as bigint)) * 100).toFixed(2) + "%"
+    : "0.00%";
+
+  return {
+    apy: currentAPY || BigInt(0),
+    apyDisplay,
     isLoading,
-    refetch,
   };
 }

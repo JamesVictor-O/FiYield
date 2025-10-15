@@ -1,4 +1,4 @@
-import { encodeFunctionData } from 'viem';
+import { encodeFunctionData } from "viem";
 
 export interface DelegationParams {
   delegate: string; // AgentExecutor contract address
@@ -24,72 +24,72 @@ export async function createDelegation(
   duration: number = 7 * 24 * 60 * 60 // Default 1 week
 ): Promise<DelegationParams> {
   if (!window.ethereum) {
-    throw new Error('MetaMask not installed');
+    throw new Error("MetaMask not installed");
   }
 
   // Define caveats (restrictions on what agent can do)
   const caveats: Caveat[] = [
     // Caveat 1: Only allow calling 'rebalance' function on vault
     {
-      enforcer: '0x0000000000000000000000000000000000000001', // AllowedMethodsEnforcer contract
+      enforcer: "0x0000000000000000000000000000000000000001", // AllowedMethodsEnforcer contract
       terms: encodeFunctionData({
         abi: [
           {
-            name: 'rebalance',
-            type: 'function',
+            name: "rebalance",
+            type: "function",
             inputs: [
-              { name: 'user', type: 'address' },
-              { name: 'fromProtocol', type: 'address' },
-              { name: 'toProtocol', type: 'address' },
-              { name: 'amount', type: 'uint256' },
+              { name: "user", type: "address" },
+              { name: "fromProtocol", type: "address" },
+              { name: "toProtocol", type: "address" },
+              { name: "amount", type: "uint256" },
             ],
           },
         ],
-        functionName: 'rebalance',
+        functionName: "rebalance",
       }),
     },
     // Caveat 2: Time limit
     {
-      enforcer: '0x0000000000000000000000000000000000000002', // TimestampEnforcer contract
+      enforcer: "0x0000000000000000000000000000000000000002", // TimestampEnforcer contract
       terms: encodeFunctionData({
         abi: [
           {
-            name: 'enforceBefore',
-            type: 'function',
-            inputs: [{ name: 'timestamp', type: 'uint256' }],
+            name: "enforceBefore",
+            type: "function",
+            inputs: [{ name: "timestamp", type: "uint256" }],
           },
         ],
-        functionName: 'enforceBefore',
+        functionName: "enforceBefore",
         args: [BigInt(Math.floor(Date.now() / 1000) + duration)],
       }),
     },
     // Caveat 3: Maximum value per transaction
     {
-      enforcer: '0x0000000000000000000000000000000000000003', // ValueLimitEnforcer contract
+      enforcer: "0x0000000000000000000000000000000000000003", // ValueLimitEnforcer contract
       terms: encodeFunctionData({
         abi: [
           {
-            name: 'enforceMaxValue',
-            type: 'function',
-            inputs: [{ name: 'maxValue', type: 'uint256' }],
+            name: "enforceMaxValue",
+            type: "function",
+            inputs: [{ name: "maxValue", type: "uint256" }],
           },
         ],
-        functionName: 'enforceMaxValue',
+        functionName: "enforceMaxValue",
         args: [maxAmount],
       }),
     },
     // Caveat 4: Only allow calls to specific vault contract
     {
-      enforcer: '0x0000000000000000000000000000000000000004', // TargetContractEnforcer
+      enforcer: "0x0000000000000000000000000000000000000004", // TargetContractEnforcer
       terms: encodeFunctionData({
         abi: [
           {
-            name: 'enforceTarget',
-            type: 'function',
-            inputs: [{ name: 'target', type: 'address' }],
+            name: "enforceTarget",
+            type: "function",
+            inputs: [{ name: "target", type: "address" }],
           },
         ],
-        functionName: 'enforceTarget',
+        functionName: "enforceTarget",
         args: [vaultAddress as `0x${string}`],
       }),
     },
@@ -97,7 +97,7 @@ export async function createDelegation(
 
   // Create delegation using MetaMask SDK
   const delegation = await window.ethereum.request({
-    method: 'wallet_createDelegation',
+    method: "wallet_createDelegation",
     params: [
       {
         delegate: agentExecutorAddress, // Who can act on behalf of user
@@ -122,76 +122,76 @@ export async function createDepositDelegation(
   duration: number = 30 * 24 * 60 * 60 // Default 30 days
 ): Promise<DelegationParams> {
   if (!window.ethereum) {
-    throw new Error('MetaMask not installed');
+    throw new Error("MetaMask not installed");
   }
 
   const caveats: Caveat[] = [
     // Only allow deposit function
     {
-      enforcer: '0x0000000000000000000000000000000000000001',
+      enforcer: "0x0000000000000000000000000000000000000001",
       terms: encodeFunctionData({
         abi: [
           {
-            name: 'deposit',
-            type: 'function',
+            name: "deposit",
+            type: "function",
             inputs: [
-              { name: 'assets', type: 'uint256' },
-              { name: 'receiver', type: 'address' },
+              { name: "assets", type: "uint256" },
+              { name: "receiver", type: "address" },
             ],
           },
         ],
-        functionName: 'deposit',
+        functionName: "deposit",
       }),
     },
     // Time limit
     {
-      enforcer: '0x0000000000000000000000000000000000000002',
+      enforcer: "0x0000000000000000000000000000000000000002",
       terms: encodeFunctionData({
         abi: [
           {
-            name: 'enforceBefore',
-            type: 'function',
-            inputs: [{ name: 'timestamp', type: 'uint256' }],
+            name: "enforceBefore",
+            type: "function",
+            inputs: [{ name: "timestamp", type: "uint256" }],
           },
         ],
-        functionName: 'enforceBefore',
+        functionName: "enforceBefore",
         args: [BigInt(Math.floor(Date.now() / 1000) + duration)],
       }),
     },
     // Value limit
     {
-      enforcer: '0x0000000000000000000000000000000000000003',
+      enforcer: "0x0000000000000000000000000000000000000003",
       terms: encodeFunctionData({
         abi: [
           {
-            name: 'enforceMaxValue',
-            type: 'function',
-            inputs: [{ name: 'maxValue', type: 'uint256' }],
+            name: "enforceMaxValue",
+            type: "function",
+            inputs: [{ name: "maxValue", type: "uint256" }],
           },
         ],
-        functionName: 'enforceMaxValue',
+        functionName: "enforceMaxValue",
         args: [maxAmount],
       }),
     },
     // Target contract
     {
-      enforcer: '0x0000000000000000000000000000000000000004',
+      enforcer: "0x0000000000000000000000000000000000000004",
       terms: encodeFunctionData({
         abi: [
           {
-            name: 'enforceTarget',
-            type: 'function',
-            inputs: [{ name: 'target', type: 'address' }],
+            name: "enforceTarget",
+            type: "function",
+            inputs: [{ name: "target", type: "address" }],
           },
         ],
-        functionName: 'enforceTarget',
+        functionName: "enforceTarget",
         args: [vaultAddress as `0x${string}`],
       }),
     },
   ];
 
   const delegation = await window.ethereum.request({
-    method: 'wallet_createDelegation',
+    method: "wallet_createDelegation",
     params: [
       {
         delegate: agentExecutorAddress,
@@ -210,11 +210,11 @@ export async function createDepositDelegation(
  */
 export async function revokeDelegation(delegationId: string): Promise<void> {
   if (!window.ethereum) {
-    throw new Error('MetaMask not installed');
+    throw new Error("MetaMask not installed");
   }
 
   await window.ethereum.request({
-    method: 'wallet_revokeDelegation',
+    method: "wallet_revokeDelegation",
     params: [delegationId],
   });
 }
@@ -229,13 +229,13 @@ export async function getActiveDelegations(
 
   try {
     const delegations = await window.ethereum.request({
-      method: 'wallet_getDelegations',
+      method: "wallet_getDelegations",
       params: [smartAccountAddress],
     });
 
     return delegations || [];
   } catch (error) {
-    console.error('Error getting delegations:', error);
+    console.error("Error getting delegations:", error);
     return [];
   }
 }
@@ -248,19 +248,11 @@ export async function isDelegationActive(
   agentExecutorAddress: string
 ): Promise<boolean> {
   const delegations = await getActiveDelegations(smartAccountAddress);
-  
+
   return delegations.some(
-    delegation => delegation.delegate.toLowerCase() === agentExecutorAddress.toLowerCase()
+    (delegation) =>
+      delegation.delegate.toLowerCase() === agentExecutorAddress.toLowerCase()
   );
 }
 
-// Type definitions
-declare global {
-  interface Window {
-    ethereum?: {
-      request: (args: { method: string; params?: any[] }) => Promise<any>;
-      on: (event: string, handler: (...args: any[]) => void) => void;
-      removeListener: (event: string, handler: (...args: any[]) => void) => void;
-    };
-  }
-}
+// Type definitions - ethereum is already declared globally by wagmi/viem

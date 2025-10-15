@@ -4,7 +4,7 @@ pragma solidity ^0.8.19;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title AgentExecutor
@@ -22,14 +22,14 @@ contract AgentExecutor is Ownable, ReentrancyGuard {
         uint256 amount,
         uint256 timestamp
     );
-    
+
     event DepositExecuted(
         address indexed user,
         address indexed vault,
         uint256 amount,
         uint256 timestamp
     );
-    
+
     event StrategyOptimized(
         address indexed user,
         address indexed oldStrategy,
@@ -43,23 +43,26 @@ contract AgentExecutor is Ownable, ReentrancyGuard {
     mapping(address => bool) public authorizedStrategies;
     mapping(address => uint256) public userLastRebalance;
     mapping(address => uint256) public userLastDeposit;
-    
+
     // Cooldown periods (in seconds)
     uint256 public rebalanceCooldown = 3600; // 1 hour
     uint256 public depositCooldown = 1800; // 30 minutes
-    
-    // Maximum amounts per operation
-    uint256 public maxRebalanceAmount = 1000 * 10**6; // $1000
-    uint256 public maxDepositAmount = 5000 * 10**6; // $5000
 
-    constructor() {}
+    // Maximum amounts per operation
+    uint256 public maxRebalanceAmount = 1000 * 10 ** 6; // $1000
+    uint256 public maxDepositAmount = 5000 * 10 ** 6; // $5000
+
+    constructor() Ownable(msg.sender) {}
 
     /**
      * @dev Authorize a vault contract
      * @param vault Address of the vault to authorize
      * @param authorized Whether the vault is authorized
      */
-    function setAuthorizedVault(address vault, bool authorized) external onlyOwner {
+    function setAuthorizedVault(
+        address vault,
+        bool authorized
+    ) external onlyOwner {
         authorizedVaults[vault] = authorized;
     }
 
@@ -68,7 +71,10 @@ contract AgentExecutor is Ownable, ReentrancyGuard {
      * @param strategy Address of the strategy to authorize
      * @param authorized Whether the strategy is authorized
      */
-    function setAuthorizedStrategy(address strategy, bool authorized) external onlyOwner {
+    function setAuthorizedStrategy(
+        address strategy,
+        bool authorized
+    ) external onlyOwner {
         authorizedStrategies[strategy] = authorized;
     }
 
@@ -77,7 +83,10 @@ contract AgentExecutor is Ownable, ReentrancyGuard {
      * @param _rebalanceCooldown New rebalance cooldown in seconds
      * @param _depositCooldown New deposit cooldown in seconds
      */
-    function setCooldowns(uint256 _rebalanceCooldown, uint256 _depositCooldown) external onlyOwner {
+    function setCooldowns(
+        uint256 _rebalanceCooldown,
+        uint256 _depositCooldown
+    ) external onlyOwner {
         rebalanceCooldown = _rebalanceCooldown;
         depositCooldown = _depositCooldown;
     }
@@ -87,7 +96,10 @@ contract AgentExecutor is Ownable, ReentrancyGuard {
      * @param _maxRebalanceAmount New maximum rebalance amount
      * @param _maxDepositAmount New maximum deposit amount
      */
-    function setMaxAmounts(uint256 _maxRebalanceAmount, uint256 _maxDepositAmount) external onlyOwner {
+    function setMaxAmounts(
+        uint256 _maxRebalanceAmount,
+        uint256 _maxDepositAmount
+    ) external onlyOwner {
         maxRebalanceAmount = _maxRebalanceAmount;
         maxDepositAmount = _maxDepositAmount;
     }
@@ -105,7 +117,10 @@ contract AgentExecutor is Ownable, ReentrancyGuard {
         address toProtocol,
         uint256 amount
     ) external onlyOwner nonReentrant {
-        require(authorizedStrategies[fromProtocol], "From protocol not authorized");
+        require(
+            authorizedStrategies[fromProtocol],
+            "From protocol not authorized"
+        );
         require(authorizedStrategies[toProtocol], "To protocol not authorized");
         require(amount <= maxRebalanceAmount, "Amount exceeds maximum");
         require(
@@ -116,10 +131,16 @@ contract AgentExecutor is Ownable, ReentrancyGuard {
         // Execute rebalance through vault
         // This would typically call the vault's rebalance function
         // For now, we'll emit an event to track the operation
-        
+
         userLastRebalance[user] = block.timestamp;
-        
-        emit RebalanceExecuted(user, fromProtocol, toProtocol, amount, block.timestamp);
+
+        emit RebalanceExecuted(
+            user,
+            fromProtocol,
+            toProtocol,
+            amount,
+            block.timestamp
+        );
     }
 
     /**
@@ -141,11 +162,13 @@ contract AgentExecutor is Ownable, ReentrancyGuard {
         );
 
         // Execute deposit through vault
-        // This would typically call the vault's deposit function
-        // For now, we'll emit an event to track the operation
-        
+        (bool success, ) = vault.call(
+            abi.encodeWithSignature("deposit(uint256,address)", amount, user)
+        );
+        require(success, "Vault deposit failed");
+
         userLastDeposit[user] = block.timestamp;
-        
+
         emit DepositExecuted(user, vault, amount, block.timestamp);
     }
 
@@ -162,14 +185,47 @@ contract AgentExecutor is Ownable, ReentrancyGuard {
         address newStrategy,
         uint256 amount
     ) external onlyOwner nonReentrant {
-        require(authorizedStrategies[oldStrategy], "Old strategy not authorized");
-        require(authorizedStrategies[newStrategy], "New strategy not authorized");
+        require(
+            authorizedStrategies[oldStrategy],
+            "Old strategy not authorized"
+        );
+        require(
+            authorizedStrategies[newStrategy],
+            "New strategy not authorized"
+        );
         require(amount <= maxRebalanceAmount, "Amount exceeds maximum");
 
         // Execute strategy optimization
         // This would typically call the vault's setStrategy function
-        
-        emit StrategyOptimized(user, oldStrategy, newStrategy, amount, block.timestamp);
+
+        emit StrategyOptimized(
+            user,
+            oldStrategy,
+            newStrategy,
+            amount,
+            block.timestamp
+        );
+    }
+
+    /**
+     * @dev Invest funds from vault into strategy
+     * @param vault Vault address
+     * @param amount Amount to invest
+     */
+    function investFunds(
+        address vault,
+        uint256 amount
+    ) external onlyOwner nonReentrant {
+        require(authorizedVaults[vault], "Vault not authorized");
+        require(amount > 0, "Amount must be greater than 0");
+
+        // Call vault's invest function
+        (bool success, ) = vault.call(
+            abi.encodeWithSignature("invest(uint256)", amount)
+        );
+        require(success, "Vault invest failed");
+
+        emit DepositExecuted(address(0), vault, amount, block.timestamp);
     }
 
     /**
@@ -178,7 +234,9 @@ contract AgentExecutor is Ownable, ReentrancyGuard {
      * @return lastRebalance Last rebalance timestamp
      * @return lastDeposit Last deposit timestamp
      */
-    function getUserTimestamps(address user) external view returns (uint256 lastRebalance, uint256 lastDeposit) {
+    function getUserTimestamps(
+        address user
+    ) external view returns (uint256 lastRebalance, uint256 lastDeposit) {
         return (userLastRebalance[user], userLastDeposit[user]);
     }
 
@@ -188,10 +246,12 @@ contract AgentExecutor is Ownable, ReentrancyGuard {
      * @return canRebalance Whether user can rebalance
      * @return timeRemaining Time remaining until next rebalance
      */
-    function canRebalance(address user) external view returns (bool canRebalance, uint256 timeRemaining) {
+    function canRebalance(
+        address user
+    ) external view returns (bool canRebalance, uint256 timeRemaining) {
         uint256 lastRebalance = userLastRebalance[user];
         uint256 nextRebalance = lastRebalance + rebalanceCooldown;
-        
+
         if (block.timestamp >= nextRebalance) {
             return (true, 0);
         } else {
@@ -205,10 +265,12 @@ contract AgentExecutor is Ownable, ReentrancyGuard {
      * @return canDeposit Whether user can deposit
      * @return timeRemaining Time remaining until next deposit
      */
-    function canDeposit(address user) external view returns (bool canDeposit, uint256 timeRemaining) {
+    function canDeposit(
+        address user
+    ) external view returns (bool canDeposit, uint256 timeRemaining) {
         uint256 lastDeposit = userLastDeposit[user];
         uint256 nextDeposit = lastDeposit + depositCooldown;
-        
+
         if (block.timestamp >= nextDeposit) {
             return (true, 0);
         } else {
@@ -222,6 +284,12 @@ contract AgentExecutor is Ownable, ReentrancyGuard {
     function emergencyPause() external onlyOwner {
         // This would typically implement a pause mechanism
         // For now, we'll just emit an event
-        emit StrategyOptimized(address(0), address(0), address(0), 0, block.timestamp);
+        emit StrategyOptimized(
+            address(0),
+            address(0),
+            address(0),
+            0,
+            block.timestamp
+        );
     }
 }

@@ -18,13 +18,8 @@ const StrategyManager: React.FC = () => {
   const { address } = useAccount();
 
   // Get strategy data
-  const {
-    apyDisplay,
-    apyFormatted,
-    isLoading: apyLoading,
-  } = useMockAavePoolAPY();
-  const { balanceFormatted: strategyBalance, isLoading: balanceLoading } =
-    useAaveStrategyBalance();
+  const { apyDisplay, isLoading: apyLoading } = useMockAavePoolAPY();
+  const { balanceFormatted: strategyBalance } = useAaveStrategyBalance();
   const { asset, vault, aToken, aavePool } = useAaveStrategyInfo();
   const { balance: vaultBalance } = useVaultBalance();
 
@@ -95,7 +90,6 @@ const StrategyManager: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          
           <div>
             <h3 className="text-white font-semibold text-lg font-pop">
               Aave Strategy
@@ -167,11 +161,7 @@ const StrategyManager: React.FC = () => {
                 Strategy Balance
               </p>
               <p className="text-white font-bold text-lg font-pop">
-                {balanceLoading ? (
-                  <div className="w-20 h-6 bg-white/10 animate-pulse rounded"></div>
-                ) : (
-                  `$${formatNumber(strategyBalance)}`
-                )}
+                ${formatNumber(strategyBalance)}
               </p>
             </div>
           </div>
@@ -313,7 +303,7 @@ const StrategyManager: React.FC = () => {
               <div className="flex justify-between items-center p-3 bg-white/5 border border-white/10 rounded-lg">
                 <span className="text-gray-400 text-sm">Current Strategy:</span>
                 <span className="text-white font-mono text-sm">
-                  {currentStrategy
+                  {currentStrategy && typeof currentStrategy === "string"
                     ? `${currentStrategy.slice(0, 6)}...${currentStrategy.slice(
                         -4
                       )}`
@@ -323,7 +313,7 @@ const StrategyManager: React.FC = () => {
               <div className="flex justify-between items-center p-3 bg-white/5 border border-white/10 rounded-lg">
                 <span className="text-gray-400 text-sm">Asset:</span>
                 <span className="text-white font-mono text-sm">
-                  {asset
+                  {asset && typeof asset === "string"
                     ? `${asset.slice(0, 6)}...${asset.slice(-4)}`
                     : "Loading..."}
                 </span>
@@ -331,7 +321,7 @@ const StrategyManager: React.FC = () => {
               <div className="flex justify-between items-center p-3 bg-white/5 border border-white/10 rounded-lg">
                 <span className="text-gray-400 text-sm">Vault:</span>
                 <span className="text-white font-mono text-sm">
-                  {vault
+                  {vault && typeof vault === "string"
                     ? `${vault.slice(0, 6)}...${vault.slice(-4)}`
                     : "Loading..."}
                 </span>
@@ -339,7 +329,7 @@ const StrategyManager: React.FC = () => {
               <div className="flex justify-between items-center p-3 bg-white/5 border border-white/10 rounded-lg">
                 <span className="text-gray-400 text-sm">aToken:</span>
                 <span className="text-white font-mono text-sm">
-                  {aToken
+                  {aToken && typeof aToken === "string"
                     ? `${aToken.slice(0, 6)}...${aToken.slice(-4)}`
                     : "Loading..."}
                 </span>
@@ -347,7 +337,7 @@ const StrategyManager: React.FC = () => {
               <div className="flex justify-between items-center p-3 bg-white/5 border border-white/10 rounded-lg">
                 <span className="text-gray-400 text-sm">Aave Pool:</span>
                 <span className="text-white font-mono text-sm">
-                  {aavePool
+                  {aavePool && typeof aavePool === "string"
                     ? `${aavePool.slice(0, 6)}...${aavePool.slice(-4)}`
                     : "Loading..."}
                 </span>
@@ -355,21 +345,31 @@ const StrategyManager: React.FC = () => {
             </div>
 
             {/* Expected Earnings */}
-            {strategyBalance > 0 && apyFormatted > 0 && (
+            {parseFloat(strategyBalance) > 0 && apyDisplay && (
               <div className="mt-4 p-4 bg-white/5 border border-white/10 rounded-xl">
                 <div className="flex items-center gap-3 mb-3">
-                 
                   <div>
                     <p className="text-green-400 text-sm font-medium">
                       Projected Annual Earnings
                     </p>
                     <p className="text-white font-bold text-lg font-pop">
-                      ${formatNumber((strategyBalance * apyFormatted) / 100)}
+                      $
+                      {formatNumber(
+                        (parseFloat(strategyBalance) *
+                          parseFloat(apyDisplay?.replace("%", "") || "0")) /
+                          100
+                      )}
                     </p>
                   </div>
                 </div>
                 <p className="text-gray-400 text-xs">
-                  ~${formatNumber((strategyBalance * apyFormatted) / 100 / 365)}{" "}
+                  ~$
+                  {formatNumber(
+                    (parseFloat(strategyBalance) *
+                      parseFloat(apyDisplay?.replace("%", "") || "0")) /
+                      100 /
+                      365
+                  )}{" "}
                   per day
                 </p>
               </div>

@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAccount } from "wagmi";
 import { getUserProfile } from "@/lib/api";
-import { useHasActiveProfile } from "@/hooks/contract/useUserProfile";
 
 interface OnboardingStatus {
   isNewUser: boolean;
@@ -26,9 +25,9 @@ export const useUserOnboarding = (): OnboardingStatus => {
     hasCompletedOnboarding: false,
   });
 
-  // Check if user has profile on-chain (optional)
-  const { hasProfile: hasOnChainProfile, isLoading: isCheckingChain } =
-    useHasActiveProfile(address);
+  // Check if user has profile on-chain (simplified)
+  // const hasOnChainProfile = false; // Available if needed
+  const isCheckingChain = false;
 
   useEffect(() => {
     const checkOnboardingStatus = async () => {
@@ -71,7 +70,7 @@ export const useUserOnboarding = (): OnboardingStatus => {
             setIsLoading(false);
             return;
           }
-        } catch (backendError) {
+        } catch {
           console.log(
             "Backend profile not found or API unavailable, using defaults..."
           );

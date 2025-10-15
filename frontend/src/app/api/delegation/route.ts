@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 
 // Mock storage for delegation data (in production, use a database)
 const delegations = new Map<string, any>();
@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
 
     if (!smartAccount || !delegation || !type) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: "Missing required fields" },
         { status: 400 }
       );
     }
@@ -25,21 +25,15 @@ export async function POST(request: NextRequest) {
       active: true,
     });
 
-    console.log('Delegation stored:', {
-      delegationId,
-      type,
-      smartAccount,
-    });
-
     return NextResponse.json({
       success: true,
       delegationId,
-      message: 'Delegation created successfully',
+      message: "Delegation created successfully",
     });
   } catch (error) {
-    console.error('Error storing delegation:', error);
+    console.error("Error storing delegation:", error);
     return NextResponse.json(
-      { error: 'Failed to store delegation' },
+      { error: "Failed to store delegation" },
       { status: 500 }
     );
   }
@@ -48,8 +42,8 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const smartAccount = searchParams.get('smartAccount');
-    const type = searchParams.get('type');
+    const smartAccount = searchParams.get("smartAccount");
+    const type = searchParams.get("type");
 
     if (smartAccount) {
       // Get delegations for specific smart account
@@ -72,9 +66,9 @@ export async function GET(request: NextRequest) {
     const allDelegations = Array.from(delegations.values());
     return NextResponse.json({ delegations: allDelegations });
   } catch (error) {
-    console.error('Error retrieving delegations:', error);
+    console.error("Error retrieving delegations:", error);
     return NextResponse.json(
-      { error: 'Failed to retrieve delegations' },
+      { error: "Failed to retrieve delegations" },
       { status: 500 }
     );
   }
@@ -83,11 +77,11 @@ export async function GET(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const delegationId = searchParams.get('delegationId');
+    const delegationId = searchParams.get("delegationId");
 
     if (!delegationId) {
       return NextResponse.json(
-        { error: 'Delegation ID is required' },
+        { error: "Delegation ID is required" },
         { status: 400 }
       );
     }
@@ -95,7 +89,7 @@ export async function DELETE(request: NextRequest) {
     const delegation = delegations.get(delegationId);
     if (!delegation) {
       return NextResponse.json(
-        { error: 'Delegation not found' },
+        { error: "Delegation not found" },
         { status: 404 }
       );
     }
@@ -107,12 +101,12 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Delegation revoked successfully',
+      message: "Delegation revoked successfully",
     });
   } catch (error) {
-    console.error('Error revoking delegation:', error);
+    console.error("Error revoking delegation:", error);
     return NextResponse.json(
-      { error: 'Failed to revoke delegation' },
+      { error: "Failed to revoke delegation" },
       { status: 500 }
     );
   }

@@ -33,7 +33,7 @@ const HeroSection = () => {
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center items-center mb-8 sm:mb-12 px-4 animate-fade-in-up delay-600">
               <Button
                 asChild
-                className="bg-white text-black px-6 sm:px-8 py-3 sm:py-4 rounded-lg text-base sm:text-lg font-semibold transition-all duration-300 transform hover:scale-105 hover:shadow-xl active:scale-95 w-full sm:w-auto shadow-lg hover:shadow-white/20"
+                className="bg-white text-black px-6 sm:px-8 py-3 sm:py-4 rounded-lg text-base sm:text-lg font-semibold transition-all duration-300 transform   w-full sm:w-auto"
               >
                 <a
                   href="/dashboard"

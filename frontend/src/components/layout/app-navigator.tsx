@@ -18,16 +18,16 @@ import {
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: BarChart3 },
-  { name: "AI Chat", href: "/chat", icon: MessageSquare },
-  { name: "Portfolio", href: "/portfolio", icon: TrendingUp },
-  { name: "Security", href: "/security", icon: Shield },
-  { name: "Settings", href: "/settings", icon: Settings },
+  { name: "AI Chat", href: "/dashboard/chat", icon: MessageSquare },
+  { name: "Portfolio", href: "/dashboard/portfolio", icon: TrendingUp },
+  { name: "Security", href: "/dashboard/security", icon: Shield },
+  { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 
 export default function AppNavigation() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
-  const { ready, authenticated, user, login, logout } = usePrivy();
+  const { user, logout } = usePrivy();
 
   type MinimalWallet = { address?: string };
   type MinimalLinkedAccount = { type?: string; address?: string };
@@ -43,7 +43,7 @@ export default function AppNavigation() {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
-  const isConnected = ready && authenticated;
+  // const isConnected = ready && authenticated; // Available if needed
   const displayAddress = getDisplayAddress();
 
   return (
@@ -104,7 +104,6 @@ export default function AppNavigation() {
                   }`}
                   onClick={() => setSidebarOpen(false)}
                 >
-                  <item.icon className="w-5 h-5" />
                   <span className="font-medium">{item.name}</span>
                 </Link>
               );
@@ -169,7 +168,6 @@ export default function AppNavigation() {
                           : "text-gray-400 hover:text-white hover:bg-white/5"
                       }`}
                     >
-                      <item.icon className="w-5 h-5" />
                       <span className="font-medium">{item.name}</span>
                     </Link>
                   </li>

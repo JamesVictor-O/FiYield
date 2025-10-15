@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "../ui/button";
-import { Badge } from "../ui/badge";
+
 import DepositModal from "@/components/dashboard/modals/deposit-modal";
 import WithdrawModal from "./modals/withdrawalmodal";
 import SendModal from "@/components/dashboard/modals/send-modal";
@@ -39,26 +39,15 @@ const FundsManagement: React.FC<FundsManagementProps> = ({
     const savedTransactions = localStorage.getItem("userTransactions");
     if (savedTransactions) {
       try {
-        console.log("Loading saved transactions:", savedTransactions);
         const rawTransactions = JSON.parse(savedTransactions);
-        console.log("Parsed transactions:", rawTransactions);
 
         const transactions = rawTransactions.map((tx: Partial<Transaction>) => {
-          console.log(
-            "Processing transaction:",
-            tx,
-            "amount:",
-            tx.amount,
-            "type:",
-            typeof tx.amount
-          );
           return {
             ...tx,
             amount: Number(tx.amount) || 0, // Ensure amount is a valid number
             timestamp: new Date(tx.timestamp || Date.now()),
           };
         });
-        console.log("Final transactions:", transactions);
         setRecentTransactions(transactions.slice(-5)); // Show last 5 transactions
       } catch (error) {
         console.error(
@@ -74,12 +63,6 @@ const FundsManagement: React.FC<FundsManagementProps> = ({
     type: "deposit" | "withdraw" | "send",
     amount: number
   ) => {
-    console.log("Adding transaction:", {
-      type,
-      amount,
-      amountType: typeof amount,
-    });
-
     const newTransaction: Transaction = {
       id: Date.now().toString(),
       type,
@@ -87,8 +70,6 @@ const FundsManagement: React.FC<FundsManagementProps> = ({
       timestamp: new Date(),
       status: "completed",
     };
-
-    console.log("Created transaction:", newTransaction);
 
     const updatedTransactions = [newTransaction, ...recentTransactions].slice(
       0,
@@ -222,7 +203,6 @@ const FundsManagement: React.FC<FundsManagementProps> = ({
       <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            
             <div>
               <h3 className="text-white font-semibold text-lg font-pop">
                 Portfolio Balance
@@ -389,7 +369,6 @@ const FundsManagement: React.FC<FundsManagementProps> = ({
               onClick={() => {
                 localStorage.removeItem("userTransactions");
                 setRecentTransactions([]);
-                console.log("Cleared transaction history");
               }}
               className="text-gray-400 text-sm hover:text-white transition-colors duration-300"
             >
