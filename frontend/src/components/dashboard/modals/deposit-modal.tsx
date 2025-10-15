@@ -176,13 +176,6 @@ const DepositModal: React.FC<DepositModalProps> = ({
 
         const needed = allowance < amountWei;
         setNeedsApproval(needed);
-        console.log("Approval check:", {
-          amount: amountToDeposit,
-          allowance: allowance.toString(),
-          amountWei: amountWei.toString(),
-          needsApproval: needed,
-          tokenDecimals,
-        });
       } catch (err) {
         console.error("Error checking approval:", err);
         setNeedsApproval(true);
@@ -210,13 +203,6 @@ const DepositModal: React.FC<DepositModalProps> = ({
       const userBalance = parseFloat(formattedBalance);
       const depositAmount = parseFloat(amount);
 
-      console.log("Deposit validation:", {
-        userBalance,
-        depositAmount,
-        selectedToken,
-        tokenDecimals,
-        currentVaultAddress,
-      });
 
       if (depositAmount > userBalance) {
         setError(
@@ -228,7 +214,7 @@ const DepositModal: React.FC<DepositModalProps> = ({
       // Check if vault is deployed for the selected token
       try {
         getVaultAddress(selectedToken);
-      } catch (error) {
+      } catch {
         setError(
           "Vault not yet deployed for this token. Please try USDC or WBTC."
         );
@@ -239,13 +225,11 @@ const DepositModal: React.FC<DepositModalProps> = ({
       await checkApprovalNeeded(amount);
 
       if (needsApproval) {
-        console.log("Approval needed, triggering approval...");
         // Trigger approval with vault address as spender
         await approve(currentVaultAddress, amount);
         // Store pending deposit to trigger after approval
         setPendingDeposit({ amount, address, decimals: tokenDecimals });
       } else {
-        console.log("No approval needed, proceeding with deposit...");
         // Proceed with deposit if approval is not needed
         await deposit(amount, address, tokenDecimals);
       }
@@ -262,7 +246,6 @@ const DepositModal: React.FC<DepositModalProps> = ({
   // Handle approval success - trigger deposit
   useEffect(() => {
     if (isApproveConfirmed && pendingDeposit) {
-      console.log("Approval confirmed, proceeding with deposit");
 
       // Wait a moment for blockchain state to update, then deposit
       const timer = setTimeout(() => {
@@ -277,22 +260,6 @@ const DepositModal: React.FC<DepositModalProps> = ({
       return () => clearTimeout(timer);
     }
   }, [isApproveConfirmed, pendingDeposit, deposit]);
-
-  // Handle deposit success
-  useEffect(() => {
-    if (isDepositConfirmed) {
-      console.log("Deposit confirmed");
-      setSuccess(true);
-      refetchBalance();
-
-      const timer = setTimeout(() => {
-        onSuccess(parseFloat(amount));
-        handleClose();
-      }, 1500);
-
-      return () => clearTimeout(timer);
-    }
-  }, [isDepositConfirmed, amount, onSuccess, refetchBalance]);
 
   // Handle errors
   useEffect(() => {
@@ -311,7 +278,6 @@ const DepositModal: React.FC<DepositModalProps> = ({
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
-      console.log("Modal opened, resetting state");
       setError("");
       setSuccess(false);
       setNeedsApproval(false);
@@ -326,7 +292,7 @@ const DepositModal: React.FC<DepositModalProps> = ({
     }
   }, [isOpen, address, refetchAllowance, refetchBalance]);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     if (!isLoading) {
       setAmount("");
       setError("");
@@ -335,7 +301,22 @@ const DepositModal: React.FC<DepositModalProps> = ({
       setPendingDeposit(null);
       onClose();
     }
-  };
+  }, [isLoading, onClose]);
+
+  // Handle deposit success
+  useEffect(() => {
+    if (isDepositConfirmed) {
+      setSuccess(true);
+      refetchBalance();
+
+      const timer = setTimeout(() => {
+        onSuccess(parseFloat(amount));
+        handleClose();
+      }, 1500);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isDepositConfirmed, amount, onSuccess, refetchBalance, handleClose]);
 
   const getStepMessage = () => {
     if (isApprovePending || isApproveConfirming) {

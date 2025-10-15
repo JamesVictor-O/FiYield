@@ -1,0 +1,41 @@
+# ===========================================
+# NEXYIELD ENVIO SCHEMA - HACKATHON WINNER
+# ===========================================
+
+# Core Event Types
+type FiYieldVault_Deposit {
+  id: ID!
+  user: String!
+  amount: BigInt!
+  riskLevel: BigInt!
+}
+
+type FiYieldVault_Invested {
+  id: ID!
+  amount: BigInt!
+}
+
+type FiYieldVault_OwnershipTransferred {
+  id: ID!
+  previousOwner: String!
+  newOwner: String!
+}
+
+type FiYieldVault_Rebalanced {
+  id: ID!
+  user: String!
+  fromProtocol: String!
+  toProtocol: String!
+  amount: BigInt!
+}
+
+type FiYieldVault_StrategySet {
+  id: ID!
+  strategy: String!
+}
+
+type FiYieldVault_Withdraw {
+  id: ID!
+  user: String!
+  amount: BigInt!
+}

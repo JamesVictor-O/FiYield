@@ -113,7 +113,7 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({
     setError("");
 
     try {
-      withdraw(amount, address, address);
+      withdraw(amount);
     } catch (err) {
       setError(
         `Withdrawal failed: ${err instanceof Error ? err.message : String(err)}`

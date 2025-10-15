@@ -77,12 +77,6 @@ export function useVaultDeposit(vaultAddress?: string) {
       // Use the provided vault address or fallback to default
       const targetVault = vaultAddress || CONTRACT_ADDRESSES.FI_YIELD_VAULT;
 
-      console.log(
-        "Depositing to vault:",
-        targetVault,
-        "with assets:",
-        assets.toString()
-      );
 
       // Return the promise so it can be awaited
       return writeContract({
@@ -117,10 +111,6 @@ export function useVaultWithdraw() {
 
   const withdraw = async (amount: string) => {
     try {
-      console.log("Calling vault withdraw with:", {
-        amount,
-        amountWei: parseEther(amount).toString(),
-      });
 
       const assets = parseEther(amount);
 

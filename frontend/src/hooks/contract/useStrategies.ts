@@ -4,23 +4,26 @@ import { CONTRACT_ADDRESSES } from "@/components/contract/addresses";
 import AaveStrategyABI from "@/components/contract/abis/AaveStrategy.json";
 import type { StrategyInfo, StrategyConfig } from "@/components/contract/types";
 
+// Cast ABI to any to resolve type issues
+const AAVE_STRATEGY_ABI = AaveStrategyABI as any;
+
 // Hook for reading strategy information
 export function useStrategyInfo(strategyAddress: string) {
   const { data: totalAssets } = useReadContract({
     address: strategyAddress as `0x${string}`,
-    abi: AaveStrategyABI, // All strategies have similar interface
+    abi: AAVE_STRATEGY_ABI, // All strategies have similar interface
     functionName: "totalAssets",
   });
 
   const { data: asset } = useReadContract({
     address: strategyAddress as `0x${string}`,
-    abi: AaveStrategyABI,
+    abi: AAVE_STRATEGY_ABI,
     functionName: "asset",
   });
 
   const { data: vault } = useReadContract({
     address: strategyAddress as `0x${string}`,
-    abi: AaveStrategyABI,
+    abi: AAVE_STRATEGY_ABI,
     functionName: "vault",
   });
 
@@ -40,7 +43,7 @@ export function useAvailableStrategies(): StrategyConfig[] {
       name: "Aave Strategy",
       description: "Lend MockUSDC on Aave protocol for 8.2% APY",
       risk: "low",
-      apy: "8.2%",
+      apy: 8.2,
     },
     {
       type: "compound",
@@ -65,7 +68,7 @@ export function useAvailableStrategies(): StrategyConfig[] {
     },
     {
       type: "null",
-      address: CONTRACT_ADDRESSES.NULL_STRATEGY,
+      address: "0x0000000000000000000000000000000000000000",
       name: "No Strategy",
       description: "Hold assets without yield generation",
       risk: "low",

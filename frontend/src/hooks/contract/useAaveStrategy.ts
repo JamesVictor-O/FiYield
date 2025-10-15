@@ -8,7 +8,7 @@ import { CONTRACT_ADDRESSES } from "@/components/contract/addresses";
 import AaveStrategyABI from "@/components/contract/abis/AaveStrategy.json";
 
 // Use the generated ABI from deployed AaveStrategy contract
-const AAVE_STRATEGY_ABI = AaveStrategyABI;
+const AAVE_STRATEGY_ABI = AaveStrategyABI as any;
 
 export function useAaveStrategyInfo() {
   const { data: totalAssets } = useReadContract({
@@ -42,7 +42,7 @@ export function useAaveStrategyInfo() {
   });
 
   return {
-    totalAssets: totalAssets || 0n,
+    totalAssets: totalAssets || BigInt(0),
     asset: asset || "0x0000000000000000000000000000000000000000",
     vault: vault || "0x0000000000000000000000000000000000000000",
     aavePool: aavePool || "0x0000000000000000000000000000000000000000",
@@ -155,12 +155,12 @@ export function useAaveStrategyBalance() {
     functionName: "totalAssets",
   });
 
-  const balanceFormatted = totalAssets 
-    ? (parseFloat(formatEther(totalAssets))).toFixed(2)
+  const balanceFormatted = totalAssets
+    ? parseFloat(formatEther(totalAssets as bigint)).toFixed(2)
     : "0.00";
 
   return {
-    balance: totalAssets || 0n,
+    balance: totalAssets || BigInt(0),
     balanceFormatted,
   };
 }

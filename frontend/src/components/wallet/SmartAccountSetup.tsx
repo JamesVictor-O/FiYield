@@ -3,14 +3,11 @@
 import React, { useState } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { createPublicClient, http } from "viem";
-import { createBundlerClient } from "viem/account-abstraction";
 import {
   Implementation,
   toMetaMaskSmartAccount,
 } from "@metamask/delegation-toolkit";
-import { toWebAuthnAccount } from "viem/account-abstraction";
 import { monadTestnet } from "../Providers/Web3Provider";
-
 
 interface SmartAccountSetupProps {
   isOpen: boolean;
@@ -73,9 +70,6 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
       throw new Error("No wallet found");
     }
 
-    console.log("Using wallet:", wallet.walletClientType);
-    console.log("Switching to Monad Testnet (Chain ID: 10143)...");
-
     await wallet.switchChain(monadTestnet.id);
     await new Promise((resolve) => setTimeout(resolve, 1500));
 
@@ -85,8 +79,6 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
       method: "eth_chainId",
     })) as string;
     const chainIdDecimal = parseInt(currentChainId, 16);
-
-    console.log("Current Chain ID:", chainIdDecimal);
 
     if (chainIdDecimal !== monadTestnet.id) {
       throw new Error(
@@ -101,7 +93,7 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
 
     const [address] = (await provider.request({
       method: "eth_requestAccounts",
-    })) as string[];
+    })) as `0x${string}`[];
 
     const bundlerUrl = process.env.NEXT_PUBLIC_BUNDLER_URL;
 
@@ -111,14 +103,6 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
       );
     }
 
-    const bundlerClient = createBundlerClient({
-      client: publicClient,
-      transport: http(bundlerUrl, {
-        timeout: 30_000,
-        retryCount: 3,
-      }),
-    });
-
     const smartAccount = await toMetaMaskSmartAccount({
       client: publicClient,
       implementation: Implementation.Hybrid,
@@ -127,25 +111,17 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
       signer: {
         account: {
           address: address as `0x${string}`,
-          type: "json-rpc" as const,
-          async signMessage({ message }) {
+          async signMessage({ message }: { message: any }) {
             const signature = await provider.request({
               method: "personal_sign",
               params: [message, address],
             });
             return signature as `0x${string}`;
           },
-          async signTypedData(typedData) {
+          async signTypedData(typedData: any) {
             const signature = await provider.request({
               method: "eth_signTypedData_v4",
               params: [address, JSON.stringify(typedData)],
-            });
-            return signature as `0x${string}`;
-          },
-          async signTransaction(transaction) {
-            const signature = await provider.request({
-              method: "eth_signTransaction",
-              params: [transaction],
             });
             return signature as `0x${string}`;
           },
@@ -157,21 +133,12 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
   };
 
   const createSmartAccountWithPasskey = async () => {
-    const publicClient = createPublicClient({
-      chain: monadTestnet,
-      transport: http("https://testnet-rpc.monad.xyz"),
-    });
-
-    console.log("Creating passkey for Monad Testnet (Chain ID: 10143)...");
-
     // Check if we're on localhost and adjust RP ID accordingly
     const isLocalhost =
       window.location.hostname === "localhost" ||
       window.location.hostname === "127.0.0.1";
 
     const rpId = isLocalhost ? "localhost" : window.location.hostname;
-
-    console.log("Using RP ID:", rpId);
 
     // Check if WebAuthn is supported
     if (!window.PublicKeyCredential) {
@@ -212,83 +179,13 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
       throw new Error("Failed to create passkey");
     }
 
-    const response = credential.response as AuthenticatorAttestationResponse;
-    const credentialId = credential.id;
-    const attestationObject = new Uint8Array(response.attestationObject);
+    // Credential created successfully
 
-    const passkeyAccount = await toWebAuthnAccount({
-      credential: {
-        id: credentialId,
-        publicKey: attestationObject,
-      },
-      async getFn() {
-        // Use same RP ID as creation
-        const isLocalhost =
-          window.location.hostname === "localhost" ||
-          window.location.hostname === "127.0.0.1";
-        const rpId = isLocalhost ? "localhost" : window.location.hostname;
-
-        const assertion = (await navigator.credentials.get({
-          publicKey: {
-            challenge: crypto.getRandomValues(new Uint8Array(32)),
-            rpId: rpId, // Use correct RP ID
-            allowCredentials: [
-              {
-                id: new TextEncoder().encode(credentialId),
-                type: "public-key",
-              },
-            ],
-            userVerification: "preferred", // Changed from "required"
-            timeout: 120000, // Increased timeout
-          },
-        })) as PublicKeyCredential & {
-          response: AuthenticatorAssertionResponse;
-        };
-
-        return {
-          signature: new Uint8Array(assertion.response.signature),
-          webauthn: {
-            authenticatorData: new Uint8Array(
-              assertion.response.authenticatorData
-            ),
-            clientDataJSON: new Uint8Array(assertion.response.clientDataJSON),
-          },
-        };
-      },
-    });
-
-    const bundlerUrl = process.env.NEXT_PUBLIC_BUNDLER_URL;
-
-    if (!bundlerUrl) {
-      throw new Error("NEXT_PUBLIC_BUNDLER_URL is not configured");
-    }
-
-    const bundlerClient = createBundlerClient({
-      client: publicClient,
-      transport: http(bundlerUrl, {
-        timeout: 30_000,
-        retryCount: 3,
-      }),
-    });
-
-    const smartAccount = await toMetaMaskSmartAccount({
-      client: publicClient,
-      implementation: Implementation.Hybrid,
-      deployParams: [
-        "0x0000000000000000000000000000000000000000",
-        [passkeyAccount.address],
-        [],
-        [],
-      ],
-      deploySalt: "0x",
-      signer: passkeyAccount,
-    });
-
-    if (typeof window !== "undefined" && user?.id) {
-      localStorage.setItem(`passkey_credential_${user.id}`, credentialId);
-    }
-
-    return smartAccount.address;
+    // For now, we'll use a simplified approach for passkey accounts
+    // This would need to be implemented with proper WebAuthn integration
+    throw new Error(
+      "Passkey smart accounts are not yet fully implemented. Please use a wallet-based account for now."
+    );
   };
 
   const createSmartAccount = async () => {

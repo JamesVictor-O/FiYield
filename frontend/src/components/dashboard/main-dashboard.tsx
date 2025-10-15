@@ -27,25 +27,21 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
   // Smart contract hooks for real-time data
   const { balance: vaultBalance, isLoading: balanceLoading } =
     useVaultBalance();
-  const { totalAssets, strategy: currentStrategy } = useVaultInfo();
+  const { strategy: currentStrategy } = useVaultInfo();
   const { address } = useAccount();
 
   const availableStrategies = useAvailableStrategies();
 
   // Get real-time APY from our deployed MockAavePool
-  const { apyDisplay, isLoading: apyLoading } = useMockAavePoolAPY();
+  const {} = useMockAavePoolAPY();
 
   // Get Aave strategy balance
-  const { balanceFormatted: aaveStrategyBalance } = useAaveStrategyBalance();
+  const {} = useAaveStrategyBalance();
 
   // Convert vault balance to readable format - handle BigInt properly
   const vaultBalanceFormatted =
     vaultBalance && typeof vaultBalance === "bigint"
       ? parseFloat(formatEther(vaultBalance))
-      : 0;
-  const totalAssetsFormatted =
-    totalAssets && typeof totalAssets === "bigint"
-      ? parseFloat(formatEther(totalAssets))
       : 0;
 
   // Use real vault balance instead of mock balance - with proper default
@@ -336,123 +332,6 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
                 </div>
               </div>
               <StrategyManager />
-            </div>
-          </div>
-        </div>
-
-        {/* Recent Activity Section */}
-        <div className="mt-8">
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
-                <svg
-                  className="w-5 h-5 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-white font-pop">
-                  Recent Activity
-                </h2>
-                <p className="text-sm text-gray-400">
-                  Your latest transactions and updates
-                </p>
-              </div>
-            </div>
-
-            {/* Activity List */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-4 p-4 rounded-lg bg-white/5 border border-white/10">
-                <div className="w-8 h-8 rounded-full bg-green-400/20 flex items-center justify-center">
-                  <svg
-                    className="w-4 h-4 text-green-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                    />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-white">
-                    Deposit Successful
-                  </p>
-                  <p className="text-xs text-gray-400">2 hours ago</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-medium text-green-400">+$1,000</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 p-4 rounded-lg bg-white/5 border border-white/10">
-                <div className="w-8 h-8 rounded-full bg-blue-400/20 flex items-center justify-center">
-                  <svg
-                    className="w-4 h-4 text-blue-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                    />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-white">
-                    Strategy Updated
-                  </p>
-                  <p className="text-xs text-gray-400">1 day ago</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-medium text-blue-400">
-                    Aave Strategy
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 p-4 rounded-lg bg-white/5 border border-white/10">
-                <div className="w-8 h-8 rounded-full bg-yellow-400/20 flex items-center justify-center">
-                  <svg
-                    className="w-4 h-4 text-yellow-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
-                    />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-white">
-                    Earnings Generated
-                  </p>
-                  <p className="text-xs text-gray-400">3 days ago</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-medium text-yellow-400">+$45.20</p>
-                </div>
-              </div>
             </div>
           </div>
         </div>

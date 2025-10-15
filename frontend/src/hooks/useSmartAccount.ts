@@ -6,13 +6,12 @@ import {
   custom,
   http,
   type Address,
-  parseEther,
-  encodeFunctionData,
 } from "viem";
 import {
   Implementation,
   toMetaMaskSmartAccount,
 } from "@metamask/delegation-toolkit";
+import { createBundlerClient } from "viem/account-abstraction";
 import { monadTestnet } from "../components/Providers/Web3Provider";
 import { getMetaMaskProviderSafe } from "@/lib/metamask/provider";
 
@@ -42,12 +41,10 @@ export function useSmartAccount() {
     transport: http(process.env.NEXT_PUBLIC_MONAD_RPC_URL),
   });
 
-  // Create bundler client for ERC-4337
-  const bundlerClient = createPublicClient({
-    chain: monadTestnet,
-    transport: http(
-      process.env.NEXT_PUBLIC_BUNDLER_URL || "https://testnet-rpc.monad.xyz"
-    ),
+  // Create bundler client for ERC-4337 operations
+  const bundlerClient = createBundlerClient({
+    client: publicClient,
+    transport: http(process.env.NEXT_PUBLIC_BUNDLER_RPC_URL), // Your bundler URL (e.g., Pimlico, Stackup)
   });
 
   // Create smart account
@@ -68,13 +65,15 @@ export function useSmartAccount() {
       await getMetaMaskProviderSafe();
       const privyProvider = await wallet.getEthereumProvider();
 
-      // Use MetaMask provider for delegation toolkit, Privy provider for wallet client
+      // Get the owner address first
+      const ownerAddress = wallet.address as Address;
+
+      // Create wallet client with the account from the start
       const walletClient = createWalletClient({
+        account: ownerAddress,
         chain: monadTestnet,
         transport: custom(privyProvider),
       });
-
-      const [ownerAddress] = await walletClient.getAddresses();
 
       // Create MetaMask Smart Account (Hybrid implementation)
       const account = await toMetaMaskSmartAccount({
@@ -82,7 +81,23 @@ export function useSmartAccount() {
         implementation: Implementation.Hybrid,
         deployParams: [ownerAddress, [], [], []], // [eoaOwner, passkeyIds, xCoords, yCoords]
         deploySalt: `0x${Date.now().toString(16).padStart(64, "0")}`, // Unique salt per user
-        signer: { walletClient },
+        signer: {
+          account: {
+            address: ownerAddress,
+            async signMessage({ message }: { message: any }) {
+              return await walletClient.signMessage({
+                account: ownerAddress,
+                message,
+              });
+            },
+            async signTypedData(typedData: any) {
+              return await walletClient.signTypedData({
+                account: ownerAddress,
+                ...typedData,
+              });
+            },
+          },
+        },
       });
 
       setSmartAccount(account);
@@ -97,8 +112,6 @@ export function useSmartAccount() {
         address: account.address,
       });
       setBalance(accountBalance.toString());
-
-      console.log("✅ Smart Account created:", account.address);
     } catch (err: unknown) {
       console.error("Error creating smart account:", err);
       setError(
@@ -111,23 +124,33 @@ export function useSmartAccount() {
 
   // Deploy smart account (if not already deployed)
   const deploySmartAccount = useCallback(async () => {
-    if (!smartAccount || isDeployed) return;
+    if (!smartAccount || isDeployed) {
+      return;
+    }
 
     setIsLoading(true);
+    setError(null);
+
     try {
-      // Send a deployment transaction
+      // Send user operation with the smart account
+      // The account handles signing automatically
       const userOpHash = await bundlerClient.sendUserOperation({
-        account: smartAccount,
-        calls: [], // Empty call deploys the account
+        account: smartAccount as any,
+        calls: [], // Empty calls - just deploying the account
       });
 
-      // Wait for confirmation
-      const receipt = await bundlerClient.waitForUserOperationReceipt({
+      // Wait for the user operation to be included in a block
+      await bundlerClient.waitForUserOperationReceipt({
         hash: userOpHash,
       });
 
-      console.log("✅ Smart Account deployed:", receipt.userOpHash);
       setIsDeployed(true);
+
+      // Refresh balance after deployment
+      if (address) {
+        const accountBalance = await publicClient.getBalance({ address });
+        setBalance(accountBalance.toString());
+      }
     } catch (err: unknown) {
       console.error("Error deploying smart account:", err);
       setError(
@@ -136,7 +159,7 @@ export function useSmartAccount() {
     } finally {
       setIsLoading(false);
     }
-  }, [smartAccount, isDeployed, bundlerClient]);
+  }, [smartAccount, isDeployed, bundlerClient, address, publicClient]);
 
   // Create delegation for AI agent
   const createDelegation = useCallback(
@@ -152,31 +175,30 @@ export function useSmartAccount() {
       setIsLoading(true);
       try {
         // Create delegation using ERC-7710
-        const delegation = {
-          delegate: delegateAddress,
-          authority: targetContract, // The contract the delegate can call
-          caveats: [
-            {
-              enforcer: process.env
-                .NEXT_PUBLIC_CAVEAT_ENFORCER_ADDRESS as Address,
-              terms: encodeCaveats({
-                maxAmount: parseEther("1000"), // Max $1000 per tx
-                allowedFunctions: [functionSelector],
-                validUntil: BigInt(
-                  Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60
-                ), // 1 week
-              }),
-            },
-          ],
-        };
+        // const delegation = {
+        //   delegate: delegateAddress,
+        //   authority: targetContract, // The contract the delegate can call
+        //   caveats: [
+        //     {
+        //       enforcer: process.env
+        //         .NEXT_PUBLIC_CAVEAT_ENFORCER_ADDRESS as Address,
+        //       terms: encodeCaveats({
+        //         maxAmount: parseEther("1000"), // Max $1000 per tx
+        //         allowedFunctions: [functionSelector],
+        //         validUntil: BigInt(
+        //           Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60
+        //         ), // 1 week
+        //       }),
+        //     },
+        //   ],
+        // };
 
         // Sign delegation
-        const wallet = wallets[0];
-        const provider = await wallet.getEthereumProvider();
-        const walletClient = createWalletClient({
-          chain: monadTestnet,
-          transport: custom(provider),
-        });
+        // const wallet = wallets[0];
+        // const walletClient = createWalletClient({
+        //   chain: monadTestnet,
+        //   transport: custom(provider),
+        // });
 
         // This would require implementing ERC-7710 delegation signing
         // For now, we'll store delegation data
@@ -189,7 +211,6 @@ export function useSmartAccount() {
         };
 
         setDelegations((prev) => [...prev, newDelegation]);
-        console.log("✅ Delegation created:", newDelegation);
       } catch (err: unknown) {
         console.error("Error creating delegation:", err);
         throw err;
@@ -197,30 +218,8 @@ export function useSmartAccount() {
         setIsLoading(false);
       }
     },
-    [smartAccount, wallets]
+    [smartAccount]
   );
-
-  // Helper to encode caveats
-  function encodeCaveats(params: unknown): `0x${string}` {
-    // This should encode according to your caveat enforcer contract
-    // Simplified version:
-    return encodeFunctionData({
-      abi: [
-        {
-          type: "function",
-          name: "encodeCaveats",
-          inputs: [
-            { name: "maxAmount", type: "uint256" },
-            { name: "allowedFunctions", type: "bytes4[]" },
-            { name: "validUntil", type: "uint256" },
-          ],
-          outputs: [{ type: "bytes" }],
-        },
-      ],
-      functionName: "encodeCaveats",
-      args: [params.maxAmount, params.allowedFunctions, params.validUntil],
-    });
-  }
 
   // Refresh smart account data
   const refreshSmartAccount = useCallback(async () => {

@@ -9,7 +9,9 @@ const Header = () => {
   const { ready, authenticated, user, login, logout } = usePrivy();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showSmartAccountModal, setShowSmartAccountModal] = useState(false);
-  const [smartAccountAddress, setSmartAccountAddress] = useState<string | null>(null);
+  const [smartAccountAddress, setSmartAccountAddress] = useState<string | null>(
+    null
+  );
 
   type MinimalWallet = { address?: string };
   type MinimalLinkedAccount = { type?: string; address?: string };
@@ -17,31 +19,26 @@ const Header = () => {
   const getDisplayAddress = (): string | undefined => {
     // First check if user has smart account
     if (smartAccountAddress) {
-      return `${smartAccountAddress.slice(0, 6)}...${smartAccountAddress.slice(-4)}`;
+      return `${smartAccountAddress.slice(0, 6)}...${smartAccountAddress.slice(
+        -4
+      )}`;
     }
 
-
     // Fallback to regular wallet address
-    const embeddedAddress = (user?.wallet as MinimalWallet | undefined)?.address;
+    const embeddedAddress = (user?.wallet as MinimalWallet | undefined)
+      ?.address;
     const linkedAddress = (
       user?.linkedAccounts as MinimalLinkedAccount[] | undefined
     )?.find((account) => account?.type === "wallet")?.address;
     const address = embeddedAddress || linkedAddress;
-    
+
     if (!address) return undefined;
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
-  console.log("smartAccountAddress", smartAccountAddress);
-  console.log("user", user);
-  console.log("ready", ready);
-  console.log("authenticated", authenticated);
- 
-  console.log("getDisplayAddress", getDisplayAddress());
-
   // Load smart account address from storage on mount
   useEffect(() => {
-    if (typeof window !== 'undefined' && authenticated) {
+    if (typeof window !== "undefined" && authenticated) {
       const savedAddress = localStorage.getItem(`smart_account_${user?.id}`);
       if (savedAddress) {
         setSmartAccountAddress(savedAddress);
@@ -79,13 +76,11 @@ const Header = () => {
     }
   }, [authenticated, hasSmartAccount, ready]);
 
-  const handleSmartAccountSuccess = () => {
-    console.log('Smart Account setup successful');
-  };
+  const handleSmartAccountSuccess = () => {};
 
   const handleLogout = async () => {
     // Clear smart account data
-    if (typeof window !== 'undefined' && user?.id) {
+    if (typeof window !== "undefined" && user?.id) {
       localStorage.removeItem(`smart_account_${user.id}`);
       localStorage.removeItem(`smart_account_type_${user.id}`);
       localStorage.removeItem(`passkey_credential_${user.id}`);
@@ -115,7 +110,9 @@ const Header = () => {
         <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
       );
     }
-    return <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>;
+    return (
+      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+    );
   };
 
   return (
@@ -127,15 +124,15 @@ const Header = () => {
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center">
                 <Image
-                  src="/Logo.png"
-                  alt="NexYield Logo"
+                  src="/logo2.png"
+                  alt="FiYield Logo"
                   width={20}
                   height={20}
-                  className="bg-transparent"
+                  className="bg-transparent object-contain w-full h-full"
                 />
               </div>
               <span className="text-lg font-bold text-white font-pop hidden sm:block">
-                NexYield
+                FiYield
               </span>
             </div>
 
@@ -157,15 +154,18 @@ const Header = () => {
               {/* Main CTA Button */}
               <div className="bg-white text-black px-4 sm:px-6 py-2 rounded-lg transition-all duration-300 hover:bg-white/90 active:scale-95">
                 {hasSmartAccount ? (
-                  <button onClick={handleLogout} className="flex items-center gap-2">
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center gap-2"
+                  >
                     {getButtonIcon()}
                     <span className="font-medium text-sm">
                       {getButtonText()}
                     </span>
                   </button>
                 ) : (
-                  <button 
-                    onClick={handleConnectClick} 
+                  <button
+                    onClick={handleConnectClick}
                     className="flex items-center gap-2"
                   >
                     {getButtonIcon()}

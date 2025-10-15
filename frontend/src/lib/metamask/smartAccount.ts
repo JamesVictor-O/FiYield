@@ -1,5 +1,4 @@
-import { createWalletClient, custom, Account } from 'viem';
-import { monadTestnet, baseSepolia } from './chains';
+import { Account } from "viem";
 
 /**
  * Create a Smart Account using MetaMask Delegation Toolkit
@@ -7,38 +6,23 @@ import { monadTestnet, baseSepolia } from './chains';
 export async function createSmartAccount(): Promise<Account> {
   // Check if MetaMask is installed
   if (!window.ethereum) {
-    throw new Error('MetaMask not installed');
+    throw new Error("MetaMask not installed");
   }
 
   // Request account access
-  const accounts = await window.ethereum.request({
-    method: 'eth_requestAccounts',
-  });
+  const accounts = (await window.ethereum.request({
+    method: "eth_requestAccounts",
+  })) as string[];
 
-  // Create wallet client
-  const client = createWalletClient({
-    account: accounts[0],
-    chain: monadTestnet, // Using Monad testnet
-    transport: custom(window.ethereum),
-  });
+  if (!accounts || accounts.length === 0) {
+    throw new Error("No accounts found");
+  }
 
-  // Create Smart Account using MetaMask's SDK
-  // This deploys an ERC-4337 account contract
-  const smartAccountAddress = await client.request({
-    method: 'wallet_createSmartAccount',
-    params: [
-      {
-        // Implementation can be MetaMask's default or custom
-        implementation: 'erc4337',
-        // Salt for deterministic address
-        salt: '0x0000000000000000000000000000000000000000000000000000000000000000',
-      },
-    ],
-  });
-
+  // For now, return the EOA address as the "smart account"
+  // In a real implementation, this would create an actual smart account
   return {
-    address: smartAccountAddress,
-    type: 'json-rpc',
+    address: accounts[0] as `0x${string}`,
+    type: "json-rpc",
   };
 }
 
@@ -49,13 +33,14 @@ export async function getSmartAccount(): Promise<string | null> {
   if (!window.ethereum) return null;
 
   try {
-    const smartAccounts = await window.ethereum.request({
-      method: 'wallet_getSmartAccounts',
-    });
+    // For now, get the first connected account
+    const accounts = (await window.ethereum.request({
+      method: "eth_accounts",
+    })) as string[];
 
-    return smartAccounts?.[0] || null;
+    return accounts?.[0] || null;
   } catch (error) {
-    console.error('Error getting smart account:', error);
+    console.error("Error getting smart account:", error);
     return null;
   }
 }
@@ -63,19 +48,21 @@ export async function getSmartAccount(): Promise<string | null> {
 /**
  * Get Smart Account balance
  */
-export async function getSmartAccountBalance(smartAccountAddress: string): Promise<string> {
-  if (!window.ethereum) return '0';
+export async function getSmartAccountBalance(
+  smartAccountAddress: string
+): Promise<string> {
+  if (!window.ethereum) return "0";
 
   try {
     const balance = await window.ethereum.request({
-      method: 'eth_getBalance',
-      params: [smartAccountAddress, 'latest'],
+      method: "eth_getBalance",
+      params: [smartAccountAddress, "latest"],
     });
 
     return balance;
   } catch (error) {
-    console.error('Error getting smart account balance:', error);
-    return '0';
+    console.error("Error getting smart account balance:", error);
+    return "0";
   }
 }
 
@@ -85,34 +72,30 @@ export async function getSmartAccountBalance(smartAccountAddress: string): Promi
 export async function sendSmartAccountTransaction(
   to: string,
   value: string,
-  data: string = '0x'
+  data: string = "0x"
 ): Promise<string> {
   if (!window.ethereum) {
-    throw new Error('MetaMask not installed');
+    throw new Error("MetaMask not installed");
   }
 
-  const txHash = await window.ethereum.request({
-    method: 'eth_sendTransaction',
+  const fromAddress = await getSmartAccount();
+  if (!fromAddress) {
+    throw new Error("No smart account found");
+  }
+
+  const txHash = (await window.ethereum.request({
+    method: "eth_sendTransaction",
     params: [
       {
-        from: await getSmartAccount(),
+        from: fromAddress,
         to,
         value,
         data,
       },
     ],
-  });
+  })) as string;
 
   return txHash;
 }
 
-// Type definitions
-declare global {
-  interface Window {
-    ethereum?: {
-      request: (args: { method: string; params?: any[] }) => Promise<any>;
-      on: (event: string, handler: (...args: any[]) => void) => void;
-      removeListener: (event: string, handler: (...args: any[]) => void) => void;
-    };
-  }
-}
+// Type definitions - ethereum is already declared globally by wagmi/viem

@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=./node_modules/envio/evm.schema.json
+name: Envio
+networks:
+- id: 10143
+  start_block: 0
+  contracts:
+  - name: FiYieldVault
+    address:
+    - 0x63F57C1588FdaE25c2300b2a36c90fd346C79966
+    handler: src/EventHandlers.ts
+    events:
+    - event: Deposit(address indexed user, uint256 amount, uint8 riskLevel)
+    - event: Invested(uint256 amount)
+    - event: OwnershipTransferred(address indexed previousOwner, address indexed newOwner)
+    - event: Rebalanced(address indexed user, address fromProtocol, address toProtocol, uint256 amount)
+    - event: StrategySet(address indexed strategy)
+    - event: Withdraw(address indexed user, uint256 amount)
+unordered_multichain_mode: true
+preload_handlers: true

@@ -4,7 +4,7 @@ import { CONTRACT_ADDRESSES } from "@/components/contract/addresses";
 import MockAavePoolABI from "@/components/contract/abis/MockAavePool.json";
 
 // Use the generated ABI from deployed MockAavePool contract
-const MOCK_AAVE_POOL_ABI = MockAavePoolABI;
+const MOCK_AAVE_POOL_ABI = MockAavePoolABI as any;
 
 export function useMockAavePoolInfo() {
   const { data: currentAPY } = useReadContract({
@@ -22,23 +22,23 @@ export function useMockAavePoolInfo() {
   });
 
   return {
-    currentAPY: currentAPY || 0n,
+    currentAPY: currentAPY || BigInt(0),
     reserveData: reserveData || {
-      configuration: 0n,
-      liquidityIndex: 0n,
-      currentLiquidityRate: 0n,
-      variableBorrowIndex: 0n,
-      currentVariableBorrowRate: 0n,
-      currentStableBorrowRate: 0n,
-      lastUpdateTimestamp: 0n,
-      id: 0n,
+      configuration: BigInt(0),
+      liquidityIndex: BigInt(0),
+      currentLiquidityRate: BigInt(0),
+      variableBorrowIndex: BigInt(0),
+      currentVariableBorrowRate: BigInt(0),
+      currentStableBorrowRate: BigInt(0),
+      lastUpdateTimestamp: BigInt(0),
+      id: BigInt(0),
       aTokenAddress: "0x0000000000000000000000000000000000000000",
       stableDebtTokenAddress: "0x0000000000000000000000000000000000000000",
       variableDebtTokenAddress: "0x0000000000000000000000000000000000000000",
       interestRateStrategyAddress: "0x0000000000000000000000000000000000000000",
-      accruedToTreasury: 0n,
-      unbacked: 0n,
-      isolationModeTotalDebt: 0n,
+      accruedToTreasury: BigInt(0),
+      unbacked: BigInt(0),
+      isolationModeTotalDebt: BigInt(0),
     },
   };
 }
@@ -52,11 +52,11 @@ export function useMockAavePoolAPY() {
   });
 
   const apyDisplay = currentAPY
-    ? (parseFloat(formatEther(currentAPY)) * 100).toFixed(2) + "%"
+    ? (parseFloat(formatEther(currentAPY as bigint)) * 100).toFixed(2) + "%"
     : "0.00%";
 
   return {
-    apy: currentAPY || 0n,
+    apy: currentAPY || BigInt(0),
     apyDisplay,
     isLoading,
   };
