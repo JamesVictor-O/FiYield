@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAccount, useDisconnect } from "wagmi";
 import Image from "next/image";
 import {
   BarChart3,
@@ -27,23 +27,14 @@ const navigation = [
 export default function AppNavigation() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
-  const { user, logout } = usePrivy();
-
-  type MinimalWallet = { address?: string };
-  type MinimalLinkedAccount = { type?: string; address?: string };
+  const { address } = useAccount();
+  const { disconnect } = useDisconnect();
 
   const getDisplayAddress = (): string | undefined => {
-    const embeddedAddress = (user?.wallet as MinimalWallet | undefined)
-      ?.address;
-    const linkedAddress = (
-      user?.linkedAccounts as MinimalLinkedAccount[] | undefined
-    )?.find((account) => account?.type === "wallet")?.address;
-    const address = embeddedAddress || linkedAddress;
     if (!address) return undefined;
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
-  // const isConnected = ready && authenticated; // Available if needed
   const displayAddress = getDisplayAddress();
 
   return (
@@ -71,14 +62,14 @@ export default function AppNavigation() {
               <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center">
                 <Image
                   src="/Logo.png"
-                  alt="YieldMakers Logo"
+                  alt="FiYield Logo"
                   width={20}
                   height={20}
                   className="bg-transparent"
                 />
               </div>
               <span className="text-lg font-bold text-white font-pop">
-                YieldMakers
+                FiYield
               </span>
             </div>
             <button
@@ -124,7 +115,7 @@ export default function AppNavigation() {
               </div>
             </div>
             <button
-              onClick={logout}
+              onClick={() => disconnect()}
               className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors duration-300"
             >
               <LogOut className="w-5 h-5" />
@@ -142,14 +133,14 @@ export default function AppNavigation() {
             <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center">
               <Image
                 src="/Logo.png"
-                alt="YieldMakers Logo"
+                alt="FiYield Logo"
                 width={20}
                 height={20}
                 className="bg-transparent"
               />
             </div>
             <span className="text-lg font-bold text-white font-pop">
-              YieldMakers
+              FiYield
             </span>
           </div>
 
@@ -189,7 +180,7 @@ export default function AppNavigation() {
                 </div>
               </div>
               <button
-                onClick={logout}
+                onClick={() => disconnect()}
                 className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors duration-300"
               >
                 <LogOut className="w-5 h-5" />

@@ -49,9 +49,7 @@ export function isMetaMaskAvailable(): boolean {
   return getMetaMaskProvider() !== null;
 }
 
-/**
- * Get MetaMask provider with error handling
- */
+
 export async function getMetaMaskProviderSafe() {
   const provider = getMetaMaskProvider();
 

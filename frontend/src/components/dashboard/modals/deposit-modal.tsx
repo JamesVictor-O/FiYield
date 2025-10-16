@@ -203,7 +203,6 @@ const DepositModal: React.FC<DepositModalProps> = ({
       const userBalance = parseFloat(formattedBalance);
       const depositAmount = parseFloat(amount);
 
-
       if (depositAmount > userBalance) {
         setError(
           `Insufficient balance. You have ${userBalance.toFixed(6)} tokens`
@@ -246,7 +245,6 @@ const DepositModal: React.FC<DepositModalProps> = ({
   // Handle approval success - trigger deposit
   useEffect(() => {
     if (isApproveConfirmed && pendingDeposit) {
-
       // Wait a moment for blockchain state to update, then deposit
       const timer = setTimeout(() => {
         deposit(
@@ -354,7 +352,7 @@ const DepositModal: React.FC<DepositModalProps> = ({
             Deposit Funds
           </DialogTitle>
           <DialogDescription className="text-gray-600 font-pop">
-            Add funds to your YieldMaker vault to start earning yield.
+            Add funds to your FiYield vault to start earning yield.
           </DialogDescription>
         </DialogHeader>
 

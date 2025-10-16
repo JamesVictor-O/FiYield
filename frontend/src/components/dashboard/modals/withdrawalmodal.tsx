@@ -157,8 +157,7 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({
             Withdraw Funds
           </DialogTitle>
           <DialogDescription className="text-gray-600 font-pop">
-            Withdraw funds from your YieldMaker account to your connected
-            wallet.
+            Withdraw funds from your FiYield account to your connected wallet.
           </DialogDescription>
         </DialogHeader>
 

@@ -2,19 +2,19 @@
 
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAccount, useDisconnect } from "wagmi";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { SmartAccountSetup } from "../wallet/SmartAccountSetup";
+import { SmartAccountStorage } from "@/lib/storage/smartAccount";
 
 const Header = () => {
-  const { ready, authenticated, user, login, logout } = usePrivy();
+  const { address, isConnected } = useAccount();
+  const { disconnect } = useDisconnect();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showSmartAccountModal, setShowSmartAccountModal] = useState(false);
   const [smartAccountAddress, setSmartAccountAddress] = useState<string | null>(
     null
   );
-
-  type MinimalWallet = { address?: string };
-  type MinimalLinkedAccount = { type?: string; address?: string };
 
   const getDisplayAddress = (): string | undefined => {
     // First check if user has smart account
@@ -25,28 +25,20 @@ const Header = () => {
     }
 
     // Fallback to regular wallet address
-    const embeddedAddress = (user?.wallet as MinimalWallet | undefined)
-      ?.address;
-    const linkedAddress = (
-      user?.linkedAccounts as MinimalLinkedAccount[] | undefined
-    )?.find((account) => account?.type === "wallet")?.address;
-    const address = embeddedAddress || linkedAddress;
-
     if (!address) return undefined;
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
   // Load smart account address from storage on mount
   useEffect(() => {
-    if (typeof window !== "undefined" && authenticated) {
-      const savedAddress = localStorage.getItem(`smart_account_${user?.id}`);
+    if (isConnected && address) {
+      const savedAddress = SmartAccountStorage.getAddress(address);
       if (savedAddress) {
         setSmartAccountAddress(savedAddress);
       }
     }
-  }, [authenticated, user?.id]);
+  }, [isConnected, address]);
 
-  const isConnected = ready && authenticated;
   const displayAddress = getDisplayAddress();
   const hasSmartAccount = !!smartAccountAddress;
 
@@ -55,38 +47,35 @@ const Header = () => {
   };
 
   const handleConnectClick = async () => {
-    if (!authenticated) {
-      // Step 1: User not logged in - trigger Privy login
-      await login();
-      // After login, modal will automatically show if no smart account exists
+    if (!isConnected) {
+      // Step 1: User not connected - RainbowKit will handle connection
+      return;
     } else if (!hasSmartAccount) {
-      // Step 2: User logged in but no smart account - show setup modal
+      // Step 2: User connected but no smart account - show setup modal
       setShowSmartAccountModal(true);
     }
   };
 
-  // Auto-show smart account setup after Privy authentication
+  // Auto-show smart account setup after wallet connection
   useEffect(() => {
-    if (authenticated && !hasSmartAccount && ready) {
+    if (isConnected && !hasSmartAccount) {
       // Small delay to ensure UI is ready
       const timer = setTimeout(() => {
         setShowSmartAccountModal(true);
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [authenticated, hasSmartAccount, ready]);
+  }, [isConnected, hasSmartAccount]);
 
   const handleSmartAccountSuccess = () => {};
 
   const handleLogout = async () => {
-    // Clear smart account data
-    if (typeof window !== "undefined" && user?.id) {
-      localStorage.removeItem(`smart_account_${user.id}`);
-      localStorage.removeItem(`smart_account_type_${user.id}`);
-      localStorage.removeItem(`passkey_credential_${user.id}`);
+    // Clear smart account data using storage utility
+    if (address) {
+      SmartAccountStorage.clear(address);
     }
     setSmartAccountAddress(null);
-    await logout();
+    disconnect();
   };
 
   const navigationLinks = [
@@ -152,8 +141,10 @@ const Header = () => {
             {/* CTA Section */}
             <div className="flex items-center gap-3">
               {/* Main CTA Button */}
-              <div className="bg-white text-black px-4 sm:px-6 py-2 rounded-lg transition-all duration-300 hover:bg-white/90 active:scale-95">
-                {hasSmartAccount ? (
+              {!isConnected ? (
+                <ConnectButton />
+              ) : hasSmartAccount ? (
+                <div className="bg-white text-black px-4 sm:px-6 py-2 rounded-lg transition-all duration-300 hover:bg-white/90 active:scale-95">
                   <button
                     onClick={handleLogout}
                     className="flex items-center gap-2"
@@ -163,7 +154,9 @@ const Header = () => {
                       {getButtonText()}
                     </span>
                   </button>
-                ) : (
+                </div>
+              ) : (
+                <div className="bg-white text-black px-4 sm:px-6 py-2 rounded-lg transition-all duration-300 hover:bg-white/90 active:scale-95">
                   <button
                     onClick={handleConnectClick}
                     className="flex items-center gap-2"
@@ -173,8 +166,8 @@ const Header = () => {
                       {getButtonText()}
                     </span>
                   </button>
-                )}
-              </div>
+                </div>
+              )}
 
               {/* Mobile Menu Toggle */}
               <button
