@@ -128,13 +128,13 @@ const StrategyManager: React.FC = () => {
             </div>
             <div>
               <p className="text-gray-400 text-xs font-medium">Current APY</p>
-              <p className="text-white font-bold text-lg font-pop">
+              <div className="text-white font-bold text-lg font-pop">
                 {apyLoading ? (
                   <div className="w-16 h-6 bg-white/10 animate-pulse rounded"></div>
                 ) : (
                   apyDisplay || "8.2%"
                 )}
-              </p>
+              </div>
             </div>
           </div>
         </div>

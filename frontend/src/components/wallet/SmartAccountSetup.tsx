@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useState } from "react";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { createPublicClient, http } from "viem";
+import { useAccount } from "wagmi";
+import { createPublicClient, http, keccak256, toHex } from "viem";
 import {
   Implementation,
   toMetaMaskSmartAccount,
 } from "@metamask/delegation-toolkit";
 import { monadTestnet } from "../Providers/Web3Provider";
+import { SmartAccountStorage } from "@/lib/storage/smartAccount";
 
 interface SmartAccountSetupProps {
   isOpen: boolean;
@@ -24,71 +25,128 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
   onSuccess,
   onAddressCreated,
 }) => {
-  const { user, createWallet } = usePrivy();
-  const { wallets } = useWallets();
+  const { address, isConnected } = useAccount();
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<AccountType | null>(null);
-  const [isCreatingWallet, setIsCreatingWallet] = useState(false);
 
   if (!isOpen) return null;
 
-  const hasWallet = wallets.length > 0;
-  const hasEmbeddedWallet = wallets.some((w) => w.walletClientType === "privy");
+  const hasWallet = isConnected && address;
 
-  // Function to create embedded wallet first
-  const handleCreateEmbeddedWallet = async () => {
-    try {
-      setIsCreatingWallet(true);
-      setError(null);
-
-      // Create Privy embedded wallet
-      await createWallet();
-
-      // Wait for wallet to be created
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      // Now proceed to create smart account
-      setSelectedType("embedded");
-    } catch (err) {
-      console.error("Error creating embedded wallet:", err);
-      setError(
-        err instanceof Error ? err.message : "Failed to create embedded wallet"
-      );
-    } finally {
-      setIsCreatingWallet(false);
-    }
-  };
-
-  const createSmartAccountWithEOA = async (useEmbedded: boolean = false) => {
-    // If using embedded wallet option, find the embedded wallet
-    const wallet = useEmbedded
-      ? wallets.find((w) => w.walletClientType === "privy") || wallets[0]
-      : wallets[0];
-
-    if (!wallet) {
-      throw new Error("No wallet found");
+  const createSmartAccountWithEOA = async () => {
+    if (!address) {
+      throw new Error("No wallet connected");
     }
 
-    await wallet.switchChain(monadTestnet.id);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
+    // Get the MetaMask provider with better error handling
     let provider;
     try {
-      provider = await wallet.getEthereumProvider();
+      if (typeof window === "undefined") {
+        throw new Error("Window object not available");
+      }
+
+      provider = (window as any).ethereum;
+
+      if (!provider) {
+        throw new Error(
+          "MetaMask not found. Please install MetaMask extension."
+        );
+      }
+
+      // Check if it's actually MetaMask
+      if (!provider.isMetaMask) {
+        throw new Error("Please use MetaMask wallet for this feature");
+      }
+
+      // Request accounts to ensure connection
+      const accounts = (await provider.request({
+        method: "eth_accounts",
+      })) as string[];
+
+      if (accounts.length === 0) {
+        throw new Error("Please connect your MetaMask wallet first");
+      }
     } catch (err) {
       console.error("Error getting ethereum provider:", err);
-      throw new Error("Wallet is not currently connected. Please reconnect your wallet.");
+      throw new Error(
+        err instanceof Error ? err.message : "Failed to connect to MetaMask"
+      );
     }
 
-    const currentChainId = (await provider.request({
-      method: "eth_chainId",
-    })) as string;
-    const chainIdDecimal = parseInt(currentChainId, 16);
+    // Check and switch chain
+    try {
+      const currentChainId = (await provider.request({
+        method: "eth_chainId",
+      })) as string;
+      const chainIdDecimal = parseInt(currentChainId, 16);
 
-    if (chainIdDecimal !== monadTestnet.id) {
+      if (chainIdDecimal !== monadTestnet.id) {
+        try {
+          await provider.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: `0x${monadTestnet.id.toString(16)}` }],
+          });
+
+          // Wait for switch to complete
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+
+          // Verify switch
+          const newChainId = (await provider.request({
+            method: "eth_chainId",
+          })) as string;
+
+          if (parseInt(newChainId, 16) !== monadTestnet.id) {
+            throw new Error("Chain switch verification failed");
+          }
+        } catch (switchError: any) {
+          // User rejected the request
+          if (switchError.code === 4001) {
+            throw new Error("Please approve the chain switch to continue");
+          }
+
+          // Chain not added to MetaMask
+          if (switchError.code === 4902) {
+            try {
+              await provider.request({
+                method: "wallet_addEthereumChain",
+                params: [
+                  {
+                    chainId: `0x${monadTestnet.id.toString(16)}`,
+                    chainName: monadTestnet.name,
+                    nativeCurrency: monadTestnet.nativeCurrency,
+                    rpcUrls: monadTestnet.rpcUrls.default.http,
+                    blockExplorerUrls: [
+                      monadTestnet.blockExplorers.default.url,
+                    ],
+                  },
+                ],
+              });
+
+              await new Promise((resolve) => setTimeout(resolve, 2000));
+            } catch (addError: any) {
+              if (addError.code === 4001) {
+                throw new Error(
+                  "Please approve adding Monad Testnet to continue"
+                );
+              }
+              throw new Error(
+                "Failed to add Monad Testnet. Please add it manually."
+              );
+            }
+          } else {
+            throw new Error(
+              `Please switch to Monad Testnet (Chain ID: ${monadTestnet.id})`
+            );
+          }
+        }
+      }
+    } catch (err) {
+      if (err instanceof Error && err.message.includes("Please")) {
+        throw err; // Re-throw user-friendly errors
+      }
       throw new Error(
-        `Please switch your wallet to Monad Testnet (Chain ID: ${monadTestnet.id}). Currently on chain ${chainIdDecimal}.`
+        "Failed to verify network. Please check your connection."
       );
     }
 
@@ -97,45 +155,70 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
       transport: http("https://testnet-rpc.monad.xyz"),
     });
 
-    const [address] = (await provider.request({
-      method: "eth_requestAccounts",
-    })) as `0x${string}`[];
-
-    const bundlerUrl = process.env.NEXT_PUBLIC_BUNDLER_URL;
+    const bundlerUrl = process.env.NEXT_PUBLIC_BUNDLER_RPC_URL;
 
     if (!bundlerUrl) {
-      throw new Error(
-        "NEXT_PUBLIC_BUNDLER_URL is not configured. Please set up a bundler that supports Monad Testnet (Chain ID: 10143)"
-      );
+      console.warn("Bundler URL not configured - using fallback mode");
     }
 
-    const smartAccount = await toMetaMaskSmartAccount({
-      client: publicClient,
-      implementation: Implementation.Hybrid,
-      deployParams: [address, [], [], []],
-      deploySalt: "0x",
-      signer: {
-        account: {
-          address: address as `0x${string}`,
-          async signMessage({ message }: { message: any }) {
-            const signature = await provider.request({
-              method: "personal_sign",
-              params: [message, address],
-            });
-            return signature as `0x${string}`;
-          },
-          async signTypedData(typedData: any) {
-            const signature = await provider.request({
-              method: "eth_signTypedData_v4",
-              params: [address, JSON.stringify(typedData)],
-            });
-            return signature as `0x${string}`;
+    // Generate deterministic salt from owner address
+    // This ensures same address always gets same smart account
+    const salt = keccak256(toHex(address));
+
+    try {
+      const smartAccount = await toMetaMaskSmartAccount({
+        client: publicClient,
+        implementation: Implementation.Hybrid,
+        deployParams: [address, [], [], []], // EOA owner, no passkeys
+        deploySalt: salt, // Deterministic salt
+        signer: {
+          account: {
+            address: address as `0x${string}`,
+            async signMessage({ message }: { message: any }) {
+              try {
+                const signature = await provider.request({
+                  method: "personal_sign",
+                  params: [message, address],
+                });
+                return signature as `0x${string}`;
+              } catch (signError: any) {
+                if (signError.code === 4001) {
+                  throw new Error(
+                    "Signature request rejected. Please approve to continue."
+                  );
+                }
+                throw new Error("Failed to sign message. Please try again.");
+              }
+            },
+            async signTypedData(typedData: any) {
+              try {
+                const signature = await provider.request({
+                  method: "eth_signTypedData_v4",
+                  params: [address, JSON.stringify(typedData)],
+                });
+                return signature as `0x${string}`;
+              } catch (signError: any) {
+                if (signError.code === 4001) {
+                  throw new Error(
+                    "Signature request rejected. Please approve to continue."
+                  );
+                }
+                throw new Error("Failed to sign typed data. Please try again.");
+              }
+            },
           },
         },
-      },
-    });
+      });
 
-    return smartAccount.address;
+      return smartAccount.address;
+    } catch (err) {
+      console.error("Error creating smart account:", err);
+      throw new Error(
+        err instanceof Error
+          ? err.message
+          : "Failed to create smart account. Please try again."
+      );
+    }
   };
 
   const createSmartAccountWithPasskey = async () => {
@@ -155,26 +238,25 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
       publicKey: {
         challenge: crypto.getRandomValues(new Uint8Array(32)),
         rp: {
-          name: "NexYield",
-          id: rpId, // Use correct RP ID for localhost vs production
+          name: "FiYield",
+          id: rpId,
         },
         user: {
           id: crypto.getRandomValues(new Uint8Array(32)),
-          name: user?.email?.address || user?.id || `user-${Date.now()}`,
-          displayName: user?.email?.address || "NexYield User",
+          name: address || `user-${Date.now()}`,
+          displayName: address || "FiYield User",
         },
         pubKeyCredParams: [
           { alg: -7, type: "public-key" }, // ES256 (preferred)
           { alg: -257, type: "public-key" }, // RS256
         ],
         authenticatorSelection: {
-          // Make it more flexible - don't force platform authenticator
-          authenticatorAttachment: "platform", // Can use "cross-platform" for USB keys
-          requireResidentKey: false, // Changed from true for better compatibility
-          residentKey: "preferred", // Changed from "required" for better compatibility
-          userVerification: "preferred", // Changed from "required" for better compatibility
+          authenticatorAttachment: "platform",
+          requireResidentKey: false,
+          residentKey: "preferred",
+          userVerification: "preferred",
         },
-        timeout: 120000, // Increased to 2 minutes
+        timeout: 120000,
         attestation: "none",
       },
     })) as PublicKeyCredential & {
@@ -185,13 +267,121 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
       throw new Error("Failed to create passkey");
     }
 
-    // Credential created successfully
+    // Extract public key from credential
+    const response = credential.response as AuthenticatorAttestationResponse;
+    const attestationObject = response.attestationObject;
 
-    // For now, we'll use a simplified approach for passkey accounts
-    // This would need to be implemented with proper WebAuthn integration
-    throw new Error(
-      "Passkey smart accounts are not yet fully implemented. Please use a wallet-based account for now."
-    );
+    // Parse the attestation object to get public key coordinates
+    // Note: You'll need a CBOR decoder library for this
+    // Install: npm install cbor
+    const CBOR = await import("cbor");
+    const attestation = CBOR.decode(attestationObject);
+    const authData = attestation.authData;
+
+    // Extract public key (last 65 bytes of authData for ES256)
+    // Format: 0x04 + x-coordinate (32 bytes) + y-coordinate (32 bytes)
+    const publicKeyBytes = authData.slice(-65);
+
+    if (publicKeyBytes[0] !== 0x04) {
+      throw new Error("Unsupported public key format");
+    }
+
+    const xCoord = `0x${Buffer.from(publicKeyBytes.slice(1, 33)).toString(
+      "hex"
+    )}`;
+    const yCoord = `0x${Buffer.from(publicKeyBytes.slice(33, 65)).toString(
+      "hex"
+    )}`;
+    const credentialId = credential.id;
+
+    const publicClient = createPublicClient({
+      chain: monadTestnet,
+      transport: http("https://testnet-rpc.monad.xyz"),
+    });
+
+    // Create smart account with passkey
+    const smartAccount = await toMetaMaskSmartAccount({
+      client: publicClient,
+      implementation: Implementation.Hybrid,
+      deployParams: [
+        "0x0000000000000000000000000000000000000000", // No EOA owner for passkey-only accounts
+        [credentialId], // passkey credential IDs
+        [BigInt(xCoord)], // x coordinates
+        [BigInt(yCoord)], // y coordinates
+      ],
+      deploySalt: "0x",
+      signer: {
+        account: {
+          address:
+            "0x0000000000000000000000000000000000000000" as `0x${string}`,
+          async signMessage({ message }: { message: any }) {
+            // Sign using WebAuthn
+            const messageBuffer =
+              typeof message === "string"
+                ? new TextEncoder().encode(message)
+                : message;
+
+            const assertion = (await navigator.credentials.get({
+              publicKey: {
+                challenge: messageBuffer,
+                rpId: rpId,
+                allowCredentials: [
+                  {
+                    id: Buffer.from(credentialId, "base64"),
+                    type: "public-key",
+                  },
+                ],
+                userVerification: "preferred",
+              },
+            })) as PublicKeyCredential;
+
+            const assertionResponse =
+              assertion.response as AuthenticatorAssertionResponse;
+            return `0x${Buffer.from(assertionResponse.signature).toString(
+              "hex"
+            )}` as `0x${string}`;
+          },
+          async signTypedData(typedData: any) {
+            // Similar to signMessage but with typed data
+            const dataHash = keccak256(
+              new TextEncoder().encode(JSON.stringify(typedData))
+            );
+            // Use the same WebAuthn flow as signMessage
+            const messageBuffer =
+              typeof dataHash === "string"
+                ? new TextEncoder().encode(dataHash)
+                : dataHash;
+
+            const assertion = (await navigator.credentials.get({
+              publicKey: {
+                challenge: messageBuffer,
+                rpId: rpId,
+                allowCredentials: [
+                  {
+                    id: Buffer.from(credentialId, "base64"),
+                    type: "public-key",
+                  },
+                ],
+                userVerification: "preferred",
+              },
+            })) as PublicKeyCredential;
+
+            const assertionResponse =
+              assertion.response as AuthenticatorAssertionResponse;
+            return `0x${Buffer.from(assertionResponse.signature).toString(
+              "hex"
+            )}` as `0x${string}`;
+          },
+        },
+      },
+    });
+
+    // Store credential ID for future use
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`passkey_credential_id`, credentialId);
+    }
+
+    return smartAccount.address;
   };
 
   const createSmartAccount = async () => {
@@ -202,16 +392,22 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
       let smartAccountAddress: string;
 
       if (selectedType === "eoa") {
-        smartAccountAddress = await createSmartAccountWithEOA(false);
-      } else if (selectedType === "embedded") {
-        smartAccountAddress = await createSmartAccountWithEOA(true);
+        smartAccountAddress = await createSmartAccountWithEOA();
       } else {
         smartAccountAddress = await createSmartAccountWithPasskey();
       }
 
-      if (typeof window !== "undefined" && user?.id) {
-        localStorage.setItem(`smart_account_${user.id}`, smartAccountAddress);
-        localStorage.setItem(`smart_account_type_${user.id}`, selectedType!);
+      // Store smart account data using the storage utility
+      if (address) {
+        SmartAccountStorage.save(address, {
+          address: smartAccountAddress as `0x${string}`,
+          type: selectedType!,
+          eoaOwner: selectedType === "eoa" ? address : undefined,
+          passkeyCredentialId:
+            selectedType === "passkey"
+              ? "placeholder-credential-id"
+              : undefined,
+        });
       }
 
       onAddressCreated(smartAccountAddress);
@@ -251,7 +447,7 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
   };
 
   const handleClose = () => {
-    if (!isCreating && !isCreatingWallet) {
+    if (!isCreating) {
       setError(null);
       setSelectedType(null);
       onClose();
@@ -265,7 +461,7 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
           <h2 className="text-2xl font-bold text-white">
             Create Smart Account
           </h2>
-          {!isCreating && !isCreatingWallet && (
+          {!isCreating && (
             <button
               onClick={handleClose}
               className="text-gray-400 hover:text-white transition-colors"
@@ -347,7 +543,7 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
               </button>
 
               {/* Connected External Wallet Option */}
-              {hasWallet && !hasEmbeddedWallet && (
+              {hasWallet && (
                 <button
                   onClick={() => setSelectedType("eoa")}
                   className="w-full bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg p-4 text-left transition-all duration-300"
@@ -374,74 +570,6 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
                       </h3>
                       <p className="text-gray-400 text-xs">
                         Use your external wallet (MetaMask, etc.)
-                      </p>
-                    </div>
-                  </div>
-                </button>
-              )}
-
-              {/* Embedded Wallet Option - Create if doesn't exist */}
-              {!hasEmbeddedWallet ? (
-                <button
-                  onClick={handleCreateEmbeddedWallet}
-                  disabled={isCreatingWallet}
-                  className="w-full bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg p-4 text-left transition-all duration-300 disabled:opacity-50"
-                >
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
-                      <svg
-                        className="w-6 h-6 text-blue-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                        />
-                      </svg>
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-white font-semibold">
-                        Create Embedded Wallet
-                      </h3>
-                      <p className="text-gray-400 text-xs">
-                        {isCreatingWallet
-                          ? "Creating wallet..."
-                          : "Create a wallet managed by Privy"}
-                      </p>
-                    </div>
-                  </div>
-                </button>
-              ) : (
-                <button
-                  onClick={() => setSelectedType("embedded")}
-                  className="w-full bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg p-4 text-left transition-all duration-300"
-                >
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
-                      <svg
-                        className="w-6 h-6 text-blue-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
-                    </div>
-                    <div>
-                      <h3 className="text-white font-semibold">
-                        Use Embedded Wallet
-                      </h3>
-                      <p className="text-gray-400 text-xs">
-                        Use your Privy-managed wallet
                       </p>
                     </div>
                   </div>

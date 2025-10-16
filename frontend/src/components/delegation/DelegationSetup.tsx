@@ -239,7 +239,7 @@ export function DelegationSetup({
             {!delegationCreated ? (
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                 <p className="text-gray-600 font-pop mb-4">
-                  Allow NexYield AI to automatically rebalance your portfolio
+                  Allow FiYield AI to automatically rebalance your portfolio
                   for optimal yields.
                 </p>
 

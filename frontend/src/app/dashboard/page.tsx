@@ -1,14 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAccount } from "wagmi";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 
 import MainDashboard from "@/components/dashboard/main-dashboard";
 import { User } from "@/types/index";
 import { useUserOnboarding } from "@/hooks/useUserOnboarding";
 
 export default function DashboardPage() {
-  const { ready, authenticated, user: privyUser, login } = usePrivy();
+  const { address, isConnected } = useAccount();
   const [user, setUser] = useState<User | null>(null);
 
   // Use the onboarding hook to manage user state properly
@@ -19,25 +20,15 @@ export default function DashboardPage() {
     markOnboardingComplete,
   } = useUserOnboarding();
 
-  type MinimalWallet = { address?: string };
-  type MinimalLinkedAccount = { type?: string; address?: string };
-
   const getDisplayAddress = (): string | undefined => {
-    const embeddedAddress = (privyUser?.wallet as MinimalWallet | undefined)
-      ?.address;
-    const linkedAddress = (
-      privyUser?.linkedAccounts as MinimalLinkedAccount[] | undefined
-    )?.find((account) => account?.type === "wallet")?.address;
-    const address = embeddedAddress || linkedAddress;
     if (!address) return undefined;
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
-  const isConnected = ready && authenticated;
   const displayAddress = getDisplayAddress();
 
   useEffect(() => {
-    if (isConnected && privyUser) {
+    if (isConnected && address) {
       const newUser: User = {
         address: displayAddress || "",
         balance: 0,
@@ -48,18 +39,7 @@ export default function DashboardPage() {
     } else {
       setUser(null);
     }
-  }, [isConnected, privyUser, displayAddress, isNewUser, riskProfile]);
-
-  if (!ready) {
-    return (
-      <div className="min-h-screen bg-[#101110] flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 bg-white/10 rounded-full mx-auto mb-4 animate-pulse"></div>
-          <p className="text-gray-400">Loading...</p>
-        </div>
-      </div>
-    );
-  }
+  }, [isConnected, address, displayAddress, isNewUser, riskProfile]);
 
   if (!isConnected) {
     return (
@@ -87,12 +67,7 @@ export default function DashboardPage() {
             Connect your wallet to access your DeFi dashboard and start earning
             yields.
           </p>
-          <button
-            onClick={login}
-            className="w-full bg-white text-black px-6 py-3 rounded-lg font-medium hover:bg-white/90 transition-colors duration-300"
-          >
-            Connect Wallet
-          </button>
+          <ConnectButton />
         </div>
       </div>
     );
