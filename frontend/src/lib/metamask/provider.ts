@@ -1,15 +1,9 @@
-/**
- * MetaMask Provider Utilities
- * Handles provider conflicts between MetaMask and other wallet providers
- */
+
 
 // Store the original ethereum provider
 let originalEthereumProvider: any = null;
 
-/**
- * Initialize MetaMask provider handling
- * This should be called early in the app lifecycle
- */
+
 export function initializeMetaMaskProvider() {
   // Store the original provider if it exists
   if (typeof window !== "undefined" && window.ethereum) {
@@ -39,7 +33,7 @@ export function getMetaMaskProvider() {
     return window.ethereum;
   }
 
-  // If we stored the original provider, restore it
+ 
   if (originalEthereumProvider) {
     window.ethereum = originalEthereumProvider;
     return originalEthereumProvider;

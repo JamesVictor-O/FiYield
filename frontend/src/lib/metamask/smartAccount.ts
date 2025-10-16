@@ -30,15 +30,21 @@ export async function createSmartAccount(): Promise<Account> {
  * Check if user already has a Smart Account
  */
 export async function getSmartAccount(): Promise<string | null> {
-  if (!window.ethereum) return null;
+  if (!window.ethereum) {
+    console.log("MetaMask not installed");
+    return null;
+  }
 
   try {
-    // For now, get the first connected account
-    const accounts = (await window.ethereum.request({
-      method: "eth_accounts",
-    })) as string[];
+    // Check if wallet is connected
+    const accounts = await window.ethereum.request({ method: "eth_accounts" });
+    if (!accounts || accounts.length === 0) {
+      console.log("Wallet not connected");
+      return null;
+    }
 
-    return accounts?.[0] || null;
+    // For now, get the first connected account
+    return accounts[0];
   } catch (error) {
     console.error("Error getting smart account:", error);
     return null;
@@ -98,4 +104,4 @@ export async function sendSmartAccountTransaction(
   return txHash;
 }
 
-// Type definitions - ethereum is already declared globally by wagmi/viem
+

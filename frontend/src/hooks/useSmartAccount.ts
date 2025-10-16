@@ -49,7 +49,12 @@ export function useSmartAccount() {
 
   // Create smart account
   const createSmartAccount = useCallback(async () => {
-    if (!authenticated || wallets.length === 0) {
+    if (!authenticated) {
+      setError("Please authenticate first");
+      return;
+    }
+    
+    if (wallets.length === 0) {
       setError("Please connect your wallet first");
       return;
     }
@@ -63,7 +68,21 @@ export function useSmartAccount() {
 
       // Get the MetaMask provider safely (handles conflicts)
       await getMetaMaskProviderSafe();
-      const privyProvider = await wallet.getEthereumProvider();
+      
+      // Check if wallet is still connected
+      if (!wallet.address) {
+        setError("Wallet connection lost. Please reconnect your wallet.");
+        return;
+      }
+      
+      let privyProvider;
+      try {
+        privyProvider = await wallet.getEthereumProvider();
+      } catch (err) {
+        console.error("Error getting ethereum provider:", err);
+        setError("Wallet is not currently connected. Please reconnect your wallet.");
+        return;
+      }
 
       // Get the owner address first
       const ownerAddress = wallet.address as Address;
@@ -236,12 +255,12 @@ export function useSmartAccount() {
     }
   }, [address, publicClient]);
 
-  // Auto-refresh on mount
+  // Auto-refresh on mount - only if authenticated and wallet is connected
   useEffect(() => {
-    if (address) {
+    if (authenticated && wallets.length > 0 && address) {
       refreshSmartAccount();
     }
-  }, [address, refreshSmartAccount]);
+  }, [authenticated, wallets.length, address, refreshSmartAccount]);
 
   return {
     smartAccount,

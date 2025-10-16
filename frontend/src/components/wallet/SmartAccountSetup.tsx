@@ -73,7 +73,13 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
     await wallet.switchChain(monadTestnet.id);
     await new Promise((resolve) => setTimeout(resolve, 1500));
 
-    const provider = await wallet.getEthereumProvider();
+    let provider;
+    try {
+      provider = await wallet.getEthereumProvider();
+    } catch (err) {
+      console.error("Error getting ethereum provider:", err);
+      throw new Error("Wallet is not currently connected. Please reconnect your wallet.");
+    }
 
     const currentChainId = (await provider.request({
       method: "eth_chainId",

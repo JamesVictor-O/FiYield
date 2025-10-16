@@ -36,6 +36,12 @@ export function DelegationSetup({
 
   const checkExistingSetup = useCallback(async () => {
     try {
+      // Check if wallet is connected first
+      if (!window.ethereum) {
+        console.log("MetaMask not installed");
+        return;
+      }
+
       // Check for existing smart account
       const existingAccount = await getSmartAccount();
       if (existingAccount) {
