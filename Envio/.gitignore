@@ -23,6 +23,7 @@ lib/*
 *.mliast
 .vscode
 .merlin
+.cursor
 .bsb.lock
 /node_modules/
 benchmarks/
