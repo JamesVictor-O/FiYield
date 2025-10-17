@@ -8,11 +8,11 @@
     "version": "1",
     "name": " ",
     "iconUrl": "https://i.imgur.com/7imgqIO.jpeg",
-    "homeUrl": " ",
+    "homeUrl": "https://fi-yield.vercel.app/",
     "imageUrl": "https://i.imgur.com/gefTKV.jpeg",
     "buttonTitle": "Play Game",
     "splashImageUrl": "https://i.imgur.com/7ioOmyO.jpeg",
     "splashBackgroundColor": "#800080",
-    "webhookUrl": "/webhook"
+    "webhookUrl": "https://fi-yield.vercel.app/webhook"
   }
 }
