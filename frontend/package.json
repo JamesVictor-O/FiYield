@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@apollo/client": "^4.0.7",
+    "@farcaster/miniapp-sdk": "^0.2.1",
     "@metamask/accounts-controller": "^33.1.0",
     "@metamask/delegation-toolkit": "^0.13.0",
     "@metamask/keyring-controller": "^23.1.0",
