@@ -346,7 +346,7 @@ const DepositModal: React.FC<DepositModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="w-full max-w-xs sm:max-w-md md:max-w-lg p-2 sm:p-6">
+      <DialogContent className="w-full max-w-xs sm:max-w-md md:max-w-lg p-2 sm:p-6 max-h-[90vh] overflow-y-auto">
         <DialogHeader className="space-y-3">
           <DialogTitle className="text-xl font-pop font-semibold text-gray-900">
             Deposit Funds
@@ -465,7 +465,7 @@ const DepositModal: React.FC<DepositModalProps> = ({
           )}
         </div>
 
-        <DialogFooter className="flex flex-col-reverse sm:flex-row gap-3 w-full">
+        <DialogFooter className="flex flex-col-reverse sm:flex-row gap-3 w-full mt-6 pt-4 border-t border-gray-200 sticky bottom-0 bg-white">
           <Button
             variant="outline"
             onClick={handleClose}
