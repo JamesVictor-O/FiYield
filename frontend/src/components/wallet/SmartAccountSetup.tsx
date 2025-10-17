@@ -9,6 +9,8 @@ import {
 } from "@metamask/delegation-toolkit";
 import { monadTestnet } from "../Providers/Web3Provider";
 import { SmartAccountStorage } from "@/lib/storage/smartAccount";
+import { isFarcasterEnvironment } from "@/lib/utils/farcaster";
+import { FarcasterWalletConnector } from "./FarcasterWalletConnector";
 
 interface SmartAccountSetupProps {
   isOpen: boolean;
@@ -39,43 +41,58 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
       throw new Error("No wallet connected");
     }
 
-    // Get the MetaMask provider with better error handling
-    let provider;
-    try {
-      if (typeof window === "undefined") {
-        throw new Error("Window object not available");
-      }
+    // In Farcaster environment, use the connected wallet directly
+    if (isFarcasterEnvironment()) {
+      // Farcaster users already have a wallet connected
+      console.log("Using Farcaster wallet for smart account creation");
+    } else {
+      // For web users, validate MetaMask provider
+      let provider;
+      try {
+        if (typeof window === "undefined") {
+          throw new Error("Window object not available");
+        }
 
-      provider = (window as any).ethereum;
+        provider = (window as any).ethereum;
 
-      if (!provider) {
+        if (!provider) {
+          throw new Error(
+            "MetaMask not found. Please install MetaMask extension."
+          );
+        }
+
+        // Check if it's actually MetaMask
+        if (!provider.isMetaMask) {
+          throw new Error("Please use MetaMask wallet for this feature");
+        }
+
+        // Request accounts to ensure connection
+        const accounts = (await provider.request({
+          method: "eth_accounts",
+        })) as string[];
+
+        if (accounts.length === 0) {
+          // Try to request connection
+          try {
+            await provider.request({
+              method: "eth_requestAccounts",
+            });
+          } catch {
+            throw new Error("Please connect your MetaMask wallet first");
+          }
+        }
+      } catch (err) {
+        console.error("Error getting ethereum provider:", err);
         throw new Error(
-          "MetaMask not found. Please install MetaMask extension."
+          err instanceof Error ? err.message : "Failed to connect to MetaMask"
         );
       }
-
-      // Check if it's actually MetaMask
-      if (!provider.isMetaMask) {
-        throw new Error("Please use MetaMask wallet for this feature");
-      }
-
-      // Request accounts to ensure connection
-      const accounts = (await provider.request({
-        method: "eth_accounts",
-      })) as string[];
-
-      if (accounts.length === 0) {
-        throw new Error("Please connect your MetaMask wallet first");
-      }
-    } catch (err) {
-      console.error("Error getting ethereum provider:", err);
-      throw new Error(
-        err instanceof Error ? err.message : "Failed to connect to MetaMask"
-      );
     }
 
     // Check and switch chain
     try {
+      // Get provider for chain operations
+      const provider = (window as any).ethereum;
       const currentChainId = (await provider.request({
         method: "eth_chainId",
       })) as string;
@@ -176,7 +193,8 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
             address: address as `0x${string}`,
             async signMessage({ message }: { message: any }) {
               try {
-                const signature = await provider.request({
+                const ethereumProvider = (window as any).ethereum;
+                const signature = await ethereumProvider.request({
                   method: "personal_sign",
                   params: [message, address],
                 });
@@ -192,7 +210,8 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
             },
             async signTypedData(typedData: any) {
               try {
-                const signature = await provider.request({
+                const ethereumProvider = (window as any).ethereum;
+                const signature = await ethereumProvider.request({
                   method: "eth_signTypedData_v4",
                   params: [address, JSON.stringify(typedData)],
                 });
@@ -222,6 +241,13 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
   };
 
   const createSmartAccountWithPasskey = async () => {
+    // Check if we're in Farcaster environment - passkeys not supported
+    if (isFarcasterEnvironment()) {
+      throw new Error(
+        "Passkey creation is not supported in Farcaster miniapp. Please use 'Create with Wallet' option."
+      );
+    }
+
     // Check if we're on localhost and adjust RP ID accordingly
     const isLocalhost =
       window.location.hostname === "localhost" ||
@@ -485,21 +511,68 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
         </div>
 
         <div className="space-y-4">
-          {!selectedType ? (
+          {!hasWallet ? (
+            <>
+              <p className="text-gray-300 text-sm mb-4">
+                {isFarcasterEnvironment()
+                  ? "Connect your Farcaster wallet to create a smart account:"
+                  : "Connect your wallet to create a smart account:"}
+              </p>
+              <FarcasterWalletConnector
+                onConnectionSuccess={() => {
+                  // Wallet connected, refresh the component
+                  window.location.reload();
+                }}
+                onConnectionError={(error) => {
+                  setError(error);
+                }}
+              />
+            </>
+          ) : !selectedType ? (
             <>
               <p className="text-gray-300 text-sm mb-4">
                 Choose how you want to create your smart account:
               </p>
 
-              {/* Passkey Option - Always available and recommended */}
-              <button
-                onClick={() => setSelectedType("passkey")}
-                className="w-full bg-gradient-to-r from-green-500/10 to-emerald-500/10 hover:from-green-500/20 hover:to-emerald-500/20 border border-green-500/30 rounded-lg p-4 text-left transition-all duration-300"
-              >
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
+              {/* Passkey Option - Hidden in Farcaster environment */}
+              {!isFarcasterEnvironment() && (
+                <button
+                  onClick={() => setSelectedType("passkey")}
+                  className="w-full bg-gradient-to-r from-green-500/10 to-emerald-500/10 hover:from-green-500/20 hover:to-emerald-500/20 border border-green-500/30 rounded-lg p-4 text-left transition-all duration-300"
+                >
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
+                      <svg
+                        className="w-6 h-6 text-green-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                        />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-white font-semibold">
+                          Use Passkey
+                        </h3>
+                        <span className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full">
+                          Recommended
+                        </span>
+                      </div>
+                      <p className="text-gray-400 text-xs">
+                        Biometric authentication - no wallet needed
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2 text-xs text-green-400">
                     <svg
-                      className="w-6 h-6 text-green-400"
+                      className="w-4 h-4"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -508,39 +581,13 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         strokeWidth={2}
-                        d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                        d="M5 13l4 4L19 7"
                       />
                     </svg>
+                    <span>Most secure • Works immediately</span>
                   </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-white font-semibold">Use Passkey</h3>
-                      <span className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full">
-                        Recommended
-                      </span>
-                    </div>
-                    <p className="text-gray-400 text-xs">
-                      Biometric authentication - no wallet needed
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-2 flex items-center gap-2 text-xs text-green-400">
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                  <span>Most secure • Works immediately</span>
-                </div>
-              </button>
+                </button>
+              )}
 
               {/* Connected External Wallet Option */}
               {hasWallet && (
@@ -576,12 +623,22 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
                 </button>
               )}
 
-              <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
-                <p className="text-blue-400 text-xs">
-                  💡 <strong>New to crypto?</strong> Use Passkey for the easiest
-                  experience - no wallet needed!
-                </p>
-              </div>
+              {!isFarcasterEnvironment() ? (
+                <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
+                  <p className="text-blue-400 text-xs">
+                    💡 <strong>New to crypto?</strong> Use Passkey for the
+                    easiest experience - no wallet needed!
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3">
+                  <p className="text-green-400 text-xs">
+                    🎉 <strong>Welcome to FiYield!</strong> Since you&apos;re
+                    using Farcaster, you already have a wallet connected.
+                    Let&apos;s create your smart account!
+                  </p>
+                </div>
+              )}
             </>
           ) : (
             <>

@@ -6,6 +6,10 @@ import { useAccount, useDisconnect } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { SmartAccountSetup } from "../wallet/SmartAccountSetup";
 import { SmartAccountStorage } from "@/lib/storage/smartAccount";
+import {
+  isFarcasterEnvironment,
+  shouldAutoShowSmartAccountModal,
+} from "@/lib/utils/farcaster";
 
 const Header = () => {
   const { address, isConnected } = useAccount();
@@ -56,9 +60,9 @@ const Header = () => {
     }
   };
 
-  // Auto-show smart account setup after wallet connection
+  // Auto-show smart account setup after wallet connection (only for web, not Farcaster)
   useEffect(() => {
-    if (isConnected && !hasSmartAccount) {
+    if (isConnected && !hasSmartAccount && shouldAutoShowSmartAccountModal()) {
       // Small delay to ensure UI is ready
       const timer = setTimeout(() => {
         setShowSmartAccountModal(true);
@@ -106,91 +110,139 @@ const Header = () => {
 
   return (
     <>
-      <header className="fixed top-0 w-full z-50 bg-[#101110]/95 backdrop-blur-sm border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16 sm:h-18">
+      <header
+        className={`fixed top-0 w-full z-50 bg-[#101110]/95 backdrop-blur-sm border-b border-white/10 ${
+          isFarcasterEnvironment() ? "h-14" : "h-16 sm:h-18"
+        }`}
+      >
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
+          <div
+            className={`flex justify-between items-center ${
+              isFarcasterEnvironment() ? "h-14" : "h-16 sm:h-18"
+            }`}
+          >
             {/* Logo Section */}
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div
+                className={`${
+                  isFarcasterEnvironment() ? "w-6 h-6" : "w-8 h-8"
+                } rounded-lg bg-white flex items-center justify-center`}
+              >
                 <Image
                   src="/logo2.png"
                   alt="FiYield Logo"
-                  width={20}
-                  height={20}
+                  width={isFarcasterEnvironment() ? 16 : 20}
+                  height={isFarcasterEnvironment() ? 16 : 20}
                   className="bg-transparent object-contain w-full h-full"
                 />
               </div>
-              <span className="text-lg font-bold text-white font-pop hidden sm:block">
+              <span
+                className={`${
+                  isFarcasterEnvironment() ? "text-sm" : "text-lg"
+                } font-bold text-white font-pop ${
+                  isFarcasterEnvironment() ? "block" : "hidden sm:block"
+                }`}
+              >
                 FiYield
               </span>
             </div>
 
-            {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center space-x-8">
-              {navigationLinks.map((link, index) => (
-                <a
-                  key={index}
-                  href={link.href}
-                  className="text-sm text-gray-300 hover:text-white transition-colors duration-300 font-medium"
-                >
-                  {link.name}
-                </a>
-              ))}
-            </nav>
+            {/* Desktop Navigation - Hidden in Farcaster */}
+            {!isFarcasterEnvironment() && (
+              <nav className="hidden md:flex items-center space-x-8">
+                {navigationLinks.map((link, index) => (
+                  <a
+                    key={index}
+                    href={link.href}
+                    className="text-sm text-gray-300 hover:text-white transition-colors duration-300 font-medium"
+                  >
+                    {link.name}
+                  </a>
+                ))}
+              </nav>
+            )}
 
             {/* CTA Section */}
-            <div className="flex items-center gap-3">
+            <div
+              className={`flex items-center ${
+                isFarcasterEnvironment() ? "gap-2" : "gap-3"
+              }`}
+            >
               {/* Main CTA Button */}
               {!isConnected ? (
-                <ConnectButton />
+                <div className={isFarcasterEnvironment() ? "w-full" : ""}>
+                  <ConnectButton />
+                </div>
               ) : hasSmartAccount ? (
-                <div className="bg-white text-black px-4 sm:px-6 py-2 rounded-lg transition-all duration-300 hover:bg-white/90 active:scale-95">
+                <div
+                  className={`bg-white text-black ${
+                    isFarcasterEnvironment()
+                      ? "px-3 py-1.5"
+                      : "px-4 sm:px-6 py-2"
+                  } rounded-lg transition-all duration-300 hover:bg-white/90 active:scale-95`}
+                >
                   <button
                     onClick={handleLogout}
                     className="flex items-center gap-2"
                   >
                     {getButtonIcon()}
-                    <span className="font-medium text-sm">
+                    <span
+                      className={`font-medium ${
+                        isFarcasterEnvironment() ? "text-xs" : "text-sm"
+                      }`}
+                    >
                       {getButtonText()}
                     </span>
                   </button>
                 </div>
               ) : (
-                <div className="bg-white text-black px-4 sm:px-6 py-2 rounded-lg transition-all duration-300 hover:bg-white/90 active:scale-95">
+                <div
+                  className={`bg-white text-black ${
+                    isFarcasterEnvironment()
+                      ? "px-3 py-1.5"
+                      : "px-4 sm:px-6 py-2"
+                  } rounded-lg transition-all duration-300 hover:bg-white/90 active:scale-95`}
+                >
                   <button
                     onClick={handleConnectClick}
                     className="flex items-center gap-2"
                   >
                     {getButtonIcon()}
-                    <span className="font-medium text-sm">
+                    <span
+                      className={`font-medium ${
+                        isFarcasterEnvironment() ? "text-xs" : "text-sm"
+                      }`}
+                    >
                       {getButtonText()}
                     </span>
                   </button>
                 </div>
               )}
 
-              {/* Mobile Menu Toggle */}
-              <button
-                className="md:hidden p-2 rounded-lg hover:bg-white/5 transition-colors duration-300"
-                onClick={toggleMobileMenu}
-                aria-label="Toggle menu"
-              >
-                <svg
-                  className={`w-5 h-5 text-white transition-transform duration-300 ${
-                    mobileMenuOpen ? "rotate-90" : ""
-                  }`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+              {/* Mobile Menu Toggle - Hidden in Farcaster */}
+              {!isFarcasterEnvironment() && (
+                <button
+                  className="md:hidden p-2 rounded-lg hover:bg-white/5 transition-colors duration-300"
+                  onClick={toggleMobileMenu}
+                  aria-label="Toggle menu"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 6h16M4 12h16M4 18h16"
-                  />
-                </svg>
-              </button>
+                  <svg
+                    className={`w-5 h-5 text-white transition-transform duration-300 ${
+                      mobileMenuOpen ? "rotate-90" : ""
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 6h16M4 12h16M4 18h16"
+                    />
+                  </svg>
+                </button>
+              )}
             </div>
           </div>
 
