@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from "react";
-import { formatEther } from "viem";
 import { User } from "@/types";
 import WelcomeFlow from "./WelcomeFlow";
 import FundsManagement from "./FundsManagement";
 import StrategyManager from "../manager/StrategyManager";
+import AIDelegationModal from "./modals/ai-delegation-modal";
 import { useVaultBalance, useVaultInfo } from "@/hooks/contract/useVault";
 import { useAvailableStrategies } from "@/hooks/contract/useStrategies";
 import { useMockAavePoolAPY } from "@/hooks/contract/useMockAavePool";
 import { useAaveStrategyBalance } from "@/hooks/contract/useAaveStrategy";
-import { useAccount } from "wagmi";
+import { useAccount, useReadContract } from "wagmi";
+import { CONTRACT_ADDRESSES } from "@/components/contract/addresses";
+import FiYieldVaultABI from "@/components/contract/abis/FiYieldVault.json";
 
 interface MainDashboardProps {
   user: User;
@@ -23,12 +25,57 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
 }) => {
   const [showWelcome, setShowWelcome] = useState(user.isNewUser);
   const [userInitialDeposit, setUserInitialDeposit] = useState(0);
+  const [showDelegationModal, setShowDelegationModal] = useState(false);
+
+  const { address } = useAccount();
 
   // Smart contract hooks for real-time data
   const { balance: vaultBalance, isLoading: balanceLoading } =
     useVaultBalance();
   const { strategy: currentStrategy } = useVaultInfo();
-  const { address } = useAccount();
+
+  // Direct contract call for debugging
+  const { data: directVaultBalance, error: directVaultError } = useReadContract(
+    {
+      address: CONTRACT_ADDRESSES.FI_YIELD_VAULT as `0x${string}`,
+      abi: FiYieldVaultABI.abi,
+      functionName: "getBalance",
+      args: address ? [address as `0x${string}`] : undefined,
+      query: { enabled: !!address },
+    }
+  );
+
+  // Check vault's total assets to see if there's any money in the vault
+  const { data: totalAssets, error: totalAssetsError } = useReadContract({
+    address: CONTRACT_ADDRESSES.FI_YIELD_VAULT as `0x${string}`,
+    abi: FiYieldVaultABI.abi,
+    functionName: "totalAssets",
+    query: { enabled: !!address },
+  });
+
+  // Check vault's asset address to confirm it's using MockUSDC
+  const { data: vaultAsset, error: vaultAssetError } = useReadContract({
+    address: CONTRACT_ADDRESSES.FI_YIELD_VAULT as `0x${string}`,
+    abi: FiYieldVaultABI.abi,
+    functionName: "asset",
+    query: { enabled: !!address },
+  });
+
+  // Check strategy's total assets to see if funds are there
+  const { data: strategyAssets, error: strategyAssetsError } = useReadContract({
+    address: currentStrategy as `0x${string}`,
+    abi: [
+      {
+        inputs: [],
+        name: "totalAssets",
+        outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+        stateMutability: "view",
+        type: "function",
+      },
+    ],
+    functionName: "totalAssets",
+    query: { enabled: !!currentStrategy && currentStrategy !== "0x0" },
+  });
 
   const availableStrategies = useAvailableStrategies();
 
@@ -38,14 +85,89 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
   // Get Aave strategy balance
   const {} = useAaveStrategyBalance();
 
-  // Convert vault balance to readable format - handle BigInt properly
+  // Convert vault balance to readable format - MockUSDC has 6 decimals, not 18
   const vaultBalanceFormatted =
     vaultBalance && typeof vaultBalance === "bigint"
-      ? parseFloat(formatEther(vaultBalance))
+      ? Number(vaultBalance) / 1e6 // MockUSDC has 6 decimals
       : 0;
 
-  // Use real vault balance instead of mock balance - with proper default
-  const userBalance = vaultBalanceFormatted || 0;
+  // Use the vault balance from the main FI_YIELD_VAULT
+  // If funds are invested in strategy, use strategy balance instead
+  const strategyBalanceFormatted = strategyAssets
+    ? Number(strategyAssets) / 1e6
+    : 0;
+  const userBalance =
+    strategyBalanceFormatted > 0
+      ? strategyBalanceFormatted
+      : vaultBalanceFormatted || 0;
+
+  // Debug logging
+  useEffect(() => {
+    console.log("🔍 Balance Debug Info:", {
+      address,
+      vaultBalance: vaultBalance?.toString(),
+      vaultBalanceFormatted,
+      userBalance,
+      userInitialDeposit,
+      currentStrategy,
+      availableStrategies: availableStrategies.map((s) => ({
+        name: s.name,
+        address: s.address,
+      })),
+      // Additional debugging
+      vaultBalanceType: typeof vaultBalance,
+      vaultBalanceValue: vaultBalance,
+      isVaultBalanceZero: vaultBalance === BigInt(0),
+      isVaultBalanceNull: vaultBalance === null,
+      isVaultBalanceUndefined: vaultBalance === undefined,
+      // Contract address debugging
+      fiYieldVaultAddress: CONTRACT_ADDRESSES.FI_YIELD_VAULT,
+      mockUsdcVaultAddress: CONTRACT_ADDRESSES.MOCK_USDC_VAULT,
+      addressesMatch:
+        CONTRACT_ADDRESSES.FI_YIELD_VAULT ===
+        CONTRACT_ADDRESSES.MOCK_USDC_VAULT,
+      // Direct contract call debugging
+      directVaultBalance: directVaultBalance?.toString(),
+      directVaultError: directVaultError?.message,
+      directVaultBalanceFormatted: directVaultBalance
+        ? Number(directVaultBalance) / 1e6
+        : 0,
+      // Vault state debugging
+      totalAssets: totalAssets?.toString(),
+      totalAssetsError: totalAssetsError?.message,
+      totalAssetsFormatted: totalAssets ? Number(totalAssets) / 1e6 : 0,
+      vaultAsset: vaultAsset,
+      vaultAssetError: vaultAssetError?.message,
+      expectedMockUsdc: CONTRACT_ADDRESSES.MOCK_USDC,
+      assetMatches: vaultAsset === CONTRACT_ADDRESSES.MOCK_USDC,
+      // Strategy debugging
+      strategyAssets: strategyAssets?.toString(),
+      strategyAssetsError: strategyAssetsError?.message,
+      strategyAssetsFormatted: strategyAssets
+        ? Number(strategyAssets) / 1e6
+        : 0,
+      // Combined balance logic
+      strategyBalanceFormatted,
+      finalUserBalance: userBalance,
+    });
+  }, [
+    address,
+    vaultBalance,
+    vaultBalanceFormatted,
+    userBalance,
+    userInitialDeposit,
+    currentStrategy,
+    availableStrategies,
+    directVaultBalance,
+    directVaultError,
+    totalAssets,
+    totalAssetsError,
+    vaultAsset,
+    vaultAssetError,
+    strategyAssets,
+    strategyAssetsError,
+    strategyBalanceFormatted,
+  ]);
 
   // Load user's initial deposit from localStorage (or could be from blockchain events)
   useEffect(() => {
@@ -56,8 +178,6 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
       if (savedInitialDeposit) {
         setUserInitialDeposit(parseFloat(savedInitialDeposit));
       } else {
-        // If no initial deposit saved, assume current balance is the initial deposit
-        // This handles existing users who already have deposits
         if (vaultBalanceFormatted > 0) {
           setUserInitialDeposit(vaultBalanceFormatted);
           localStorage.setItem(
@@ -95,7 +215,6 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
     user.riskProfile = riskProfile;
     setShowWelcome(false);
 
-    // Mark onboarding as complete in the parent component
     if (onOnboardingComplete) {
       onOnboardingComplete(riskProfile);
     }
@@ -264,6 +383,46 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
           </div>
         </div>
 
+        {/* AI Delegation Section */}
+        <div className="mb-8">
+          <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-2xl p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center">
+                  <svg
+                    className="w-6 h-6 text-blue-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white font-pop mb-1">
+                    AI Portfolio Delegation
+                  </h3>
+                  <p className="text-sm text-blue-200">
+                    Let our AI optimize your portfolio allocation and strategy
+                    selection
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowDelegationModal(true)}
+                className="bg-white text-blue-600 hover:bg-blue-50 px-6 py-3 rounded-xl font-semibold transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-xl"
+              >
+                Delegate to AI
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Funds Management - Takes 2 columns on large screens */}
@@ -336,6 +495,20 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
           </div>
         </div>
       </div>
+
+      {/* AI Delegation Modal */}
+      <AIDelegationModal
+        isOpen={showDelegationModal}
+        onClose={() => setShowDelegationModal(false)}
+        onDelegate={(preferences) => {
+          console.log("AI Delegation preferences:", preferences);
+          // Here you would implement the actual AI delegation logic
+          // For now, we'll just show a success message
+          alert(
+            "Portfolio delegated to AI successfully! Your portfolio will be optimized based on your preferences."
+          );
+        }}
+      />
     </div>
   );
 };
