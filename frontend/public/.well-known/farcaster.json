@@ -1,18 +1,21 @@
 {
-  "accountAssociation": {
-    "header": "",
-    "payload": "",
-    "signature": ""
-  },
   "frame": {
+    "name": "FiYield",
     "version": "1",
-    "name": " ",
-    "iconUrl": "https://i.imgur.com/7imgqIO.jpeg",
-    "homeUrl": "https://fi-yield.vercel.app/",
-    "imageUrl": "https://i.imgur.com/gefTKV.jpeg",
-    "buttonTitle": "Play Game",
-    "splashImageUrl": "https://i.imgur.com/7ioOmyO.jpeg",
-    "splashBackgroundColor": "#800080",
-    "webhookUrl": "https://fi-yield.vercel.app/webhook"
+    "iconUrl": "https://fi-yield.vercel.app/icon.png",
+    "homeUrl": "https://fi-yield.vercel.app",
+    "imageUrl": "https://fi-yield.vercel.app/logo2.png",
+    "splashImageUrl": "https://fi-yield.vercel.app/logo2.png",
+    "splashBackgroundColor": "#1E1E1E",
+    "webhookUrl": "https://fi-yield.vercel.app/api/webhook",
+    "subtitle": "Deposit Once Earn Everywhere",
+    "description": "Earn from DeFi without the complexity FiYield's AI does all the work for you. You just deposit and relax.",
+    "primaryCategory": "finance",
+    "heroImageUrl": "https://fi-yield.vercel.app/logo2.png"
+  },
+  "accountAssociation": {
+    "header": "eyJmaWQiOjEwNTkzNDUsInR5cGUiOiJhdXRoIiwia2V5IjoiMHg2MDY0NkMyRWM3NjIzRDM2NTU3NTg1MDU4M2Y3QTc0QkI0NGM2OWRiIn0",
+    "payload": "eyJkb21haW4iOiJmaS15aWVsZC52ZXJjZWwuYXBwIn0",
+    "signature": "dfDQHHUXnquOImftKMjn0HGlk6FDGMPLWZBH7TOBi6RJse5ey4lIAnx9a2+OEov5JoODxkB7LiunktCy5uHIIxw="
   }
 }
