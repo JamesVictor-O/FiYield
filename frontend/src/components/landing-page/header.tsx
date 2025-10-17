@@ -3,13 +3,9 @@
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { useAccount, useDisconnect } from "wagmi";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { SmartAccountSetup } from "../wallet/SmartAccountSetup";
 import { SmartAccountStorage } from "@/lib/storage/smartAccount";
-import {
-  isFarcasterEnvironment,
-  shouldAutoShowSmartAccountModal,
-} from "@/lib/utils/farcaster";
+import { isFarcasterEnvironment } from "@/lib/utils/farcaster";
 
 const Header = () => {
   const { address, isConnected } = useAccount();
@@ -50,28 +46,15 @@ const Header = () => {
     setMobileMenuOpen(!mobileMenuOpen);
   };
 
-  const handleConnectClick = async () => {
-    if (!isConnected) {
-      // Step 1: User not connected - RainbowKit will handle connection
-      return;
-    } else if (!hasSmartAccount) {
-      // Step 2: User connected but no smart account - show setup modal
-      setShowSmartAccountModal(true);
-    }
+  const handleConnectClick = () => {
+    // Always show modal when user clicks connect
+    // Modal will handle wallet connection internally
+    setShowSmartAccountModal(true);
   };
 
-  // Auto-show smart account setup after wallet connection (only for web, not Farcaster)
-  useEffect(() => {
-    if (isConnected && !hasSmartAccount && shouldAutoShowSmartAccountModal()) {
-      // Small delay to ensure UI is ready
-      const timer = setTimeout(() => {
-        setShowSmartAccountModal(true);
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [isConnected, hasSmartAccount]);
-
-  const handleSmartAccountSuccess = () => {};
+  const handleSmartAccountSuccess = (smartAccountAddr: string) => {
+    setSmartAccountAddress(smartAccountAddr);
+  };
 
   const handleLogout = async () => {
     // Clear smart account data using storage utility
@@ -89,18 +72,14 @@ const Header = () => {
   ];
 
   const getButtonText = () => {
-    if (!isConnected) return "Get Started";
-    if (!hasSmartAccount) return "Setup Account";
+    if (!hasSmartAccount) return "Get Started";
     return displayAddress ?? "Account";
   };
 
   const getButtonIcon = () => {
-    if (!isConnected) {
-      return <div className="w-2 h-2 bg-gray-400 rounded-full"></div>;
-    }
     if (!hasSmartAccount) {
       return (
-        <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+        <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
       );
     }
     return (
@@ -169,55 +148,25 @@ const Header = () => {
               }`}
             >
               {/* Main CTA Button */}
-              {!isConnected ? (
-                <div className={isFarcasterEnvironment() ? "w-full" : ""}>
-                  <ConnectButton />
-                </div>
-              ) : hasSmartAccount ? (
-                <div
-                  className={`bg-white text-black ${
-                    isFarcasterEnvironment()
-                      ? "px-3 py-1.5"
-                      : "px-4 sm:px-6 py-2"
-                  } rounded-lg transition-all duration-300 hover:bg-white/90 active:scale-95`}
+              <div
+                className={`bg-white text-black hover:bg-gray-100 ${
+                  isFarcasterEnvironment() ? "px-3 py-1.5" : "px-4 sm:px-6 py-2"
+                } rounded-lg transition-all duration-300 active:scale-95`}
+              >
+                <button
+                  onClick={hasSmartAccount ? handleLogout : handleConnectClick}
+                  className="flex items-center gap-2"
                 >
-                  <button
-                    onClick={handleLogout}
-                    className="flex items-center gap-2"
+                  {getButtonIcon()}
+                  <span
+                    className={`font-semibold ${
+                      isFarcasterEnvironment() ? "text-xs" : "text-sm"
+                    }`}
                   >
-                    {getButtonIcon()}
-                    <span
-                      className={`font-medium ${
-                        isFarcasterEnvironment() ? "text-xs" : "text-sm"
-                      }`}
-                    >
-                      {getButtonText()}
-                    </span>
-                  </button>
-                </div>
-              ) : (
-                <div
-                  className={`bg-white text-black ${
-                    isFarcasterEnvironment()
-                      ? "px-3 py-1.5"
-                      : "px-4 sm:px-6 py-2"
-                  } rounded-lg transition-all duration-300 hover:bg-white/90 active:scale-95`}
-                >
-                  <button
-                    onClick={handleConnectClick}
-                    className="flex items-center gap-2"
-                  >
-                    {getButtonIcon()}
-                    <span
-                      className={`font-medium ${
-                        isFarcasterEnvironment() ? "text-xs" : "text-sm"
-                      }`}
-                    >
-                      {getButtonText()}
-                    </span>
-                  </button>
-                </div>
-              )}
+                    {getButtonText()}
+                  </span>
+                </button>
+              </div>
 
               {/* Mobile Menu Toggle - Hidden in Farcaster */}
               {!isFarcasterEnvironment() && (
@@ -271,7 +220,6 @@ const Header = () => {
         isOpen={showSmartAccountModal}
         onClose={() => setShowSmartAccountModal(false)}
         onSuccess={handleSmartAccountSuccess}
-        onAddressCreated={setSmartAccountAddress}
       />
     </>
   );

@@ -21,10 +21,29 @@ export function isFarcasterEnvironment(): boolean {
     document.referrer.includes("warpcast.com") ||
     document.referrer.includes("farcaster.xyz");
 
+  // Check for Farcaster miniapp environment
+  const isFarcasterMiniapp =
+    window.location.hostname.includes("warpcast.com") ||
+    window.location.hostname.includes("farcaster.xyz") ||
+    window.location.search.includes("farcaster") ||
+    window.location.hash.includes("farcaster");
+
+  // Debug logging
+  console.log("Farcaster Environment Check:", {
+    isFarcasterUA,
+    hasFarcasterSDK,
+    isFarcasterReferrer,
+    isFarcasterMiniapp,
+    userAgent,
+    referrer: document.referrer,
+    url: window.location.href,
+  });
+
   return (
     isFarcasterUA ||
     hasFarcasterSDK ||
     isFarcasterReferrer ||
+    isFarcasterMiniapp ||
     urlParams.has("farcaster")
   );
 }
