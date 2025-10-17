@@ -7,10 +7,14 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import MainDashboard from "@/components/dashboard/main-dashboard";
 import { User } from "@/types/index";
 import { useUserOnboarding } from "@/hooks/useUserOnboarding";
+import { SmartAccountStorage } from "@/lib/storage/smartAccount";
 
 export default function DashboardPage() {
   const { address, isConnected } = useAccount();
   const [user, setUser] = useState<User | null>(null);
+  const [smartAccountAddress, setSmartAccountAddress] = useState<string | null>(
+    null
+  );
 
   // Use the onboarding hook to manage user state properly
   const {
@@ -20,7 +24,25 @@ export default function DashboardPage() {
     markOnboardingComplete,
   } = useUserOnboarding();
 
+  // Load smart account address from storage
+  useEffect(() => {
+    if (isConnected && address) {
+      const savedAddress = SmartAccountStorage.getAddress(address);
+      if (savedAddress) {
+        setSmartAccountAddress(savedAddress);
+      }
+    }
+  }, [isConnected, address]);
+
   const getDisplayAddress = (): string | undefined => {
+    // First check if user has smart account
+    if (smartAccountAddress) {
+      return `${smartAccountAddress.slice(0, 6)}...${smartAccountAddress.slice(
+        -4
+      )}`;
+    }
+
+    // Fallback to regular wallet address
     if (!address) return undefined;
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };

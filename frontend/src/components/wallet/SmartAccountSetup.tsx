@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { useAccount } from "wagmi";
+import React, { useState, useEffect } from "react";
+import { useAccount, useConnect, useDisconnect } from "wagmi";
 import { createPublicClient, http, keccak256, toHex } from "viem";
 import {
   Implementation,
@@ -9,145 +9,122 @@ import {
 } from "@metamask/delegation-toolkit";
 import { monadTestnet } from "../Providers/Web3Provider";
 import { SmartAccountStorage } from "@/lib/storage/smartAccount";
+import { isFarcasterEnvironment } from "@/lib/utils/farcaster";
+import { injected } from "wagmi/connectors";
 
 interface SmartAccountSetupProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
-  onAddressCreated: (address: string) => void;
+  onSuccess: (address: string) => void;
 }
 
-type AccountType = "eoa" | "passkey" | "embedded";
+type SetupStep = "method_selection" | "wallet_connection" | "account_creation";
 
 export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
   isOpen,
   onClose,
   onSuccess,
-  onAddressCreated,
 }) => {
   const { address, isConnected } = useAccount();
+  const { connect, connectors } = useConnect();
+  const { disconnect } = useDisconnect();
+
+  const [currentStep, setCurrentStep] = useState<SetupStep>("method_selection");
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedType, setSelectedType] = useState<AccountType | null>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
+
+  // Reset state when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      // Check if user already has smart account
+      if (address && SmartAccountStorage.exists(address)) {
+        // User already has smart account, just close
+        onClose();
+        return;
+      }
+
+      // Determine initial step based on connection status
+      if (isConnected && address) {
+        setCurrentStep("account_creation");
+      } else {
+        setCurrentStep("method_selection");
+      }
+      setError(null);
+      setIsCreating(false);
+    }
+  }, [isOpen, isConnected, address, onClose]);
 
   if (!isOpen) return null;
 
-  const hasWallet = isConnected && address;
+  // Switch to Monad Testnet
+  const switchToMonadTestnet = async (): Promise<boolean> => {
+    try {
+      const provider = (window as any).ethereum;
+      if (!provider) {
+        throw new Error("No wallet provider found");
+      }
 
-  const createSmartAccountWithEOA = async () => {
+      const currentChainId = await provider.request({ method: "eth_chainId" });
+      const chainIdDecimal = parseInt(currentChainId, 16);
+
+      if (chainIdDecimal === monadTestnet.id) {
+        return true;
+      }
+
+      try {
+        await provider.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: `0x${monadTestnet.id.toString(16)}` }],
+        });
+
+        // Wait and verify
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        const newChainId = await provider.request({ method: "eth_chainId" });
+        return parseInt(newChainId, 16) === monadTestnet.id;
+      } catch (switchError: any) {
+        if (switchError.code === 4001) {
+          throw new Error("Please approve the chain switch to continue");
+        }
+
+        if (switchError.code === 4902) {
+          await provider.request({
+            method: "wallet_addEthereumChain",
+            params: [
+              {
+                chainId: `0x${monadTestnet.id.toString(16)}`,
+                chainName: monadTestnet.name,
+                nativeCurrency: monadTestnet.nativeCurrency,
+                rpcUrls: monadTestnet.rpcUrls.default.http,
+                blockExplorerUrls: [monadTestnet.blockExplorers.default.url],
+              },
+            ],
+          });
+
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          return true;
+        }
+
+        throw new Error(
+          `Please switch to Monad Testnet (Chain ID: ${monadTestnet.id})`
+        );
+      }
+    } catch (err) {
+      console.error("Chain switch error:", err);
+      throw err;
+    }
+  };
+
+  // Create smart account with wallet
+  const createSmartAccountWithWallet = async () => {
     if (!address) {
       throw new Error("No wallet connected");
     }
 
-    // Get the MetaMask provider with better error handling
-    let provider;
-    try {
-      if (typeof window === "undefined") {
-        throw new Error("Window object not available");
-      }
-
-      provider = (window as any).ethereum;
-
-      if (!provider) {
-        throw new Error(
-          "MetaMask not found. Please install MetaMask extension."
-        );
-      }
-
-      // Check if it's actually MetaMask
-      if (!provider.isMetaMask) {
-        throw new Error("Please use MetaMask wallet for this feature");
-      }
-
-      // Request accounts to ensure connection
-      const accounts = (await provider.request({
-        method: "eth_accounts",
-      })) as string[];
-
-      if (accounts.length === 0) {
-        throw new Error("Please connect your MetaMask wallet first");
-      }
-    } catch (err) {
-      console.error("Error getting ethereum provider:", err);
-      throw new Error(
-        err instanceof Error ? err.message : "Failed to connect to MetaMask"
-      );
-    }
-
-    // Check and switch chain
-    try {
-      const currentChainId = (await provider.request({
-        method: "eth_chainId",
-      })) as string;
-      const chainIdDecimal = parseInt(currentChainId, 16);
-
-      if (chainIdDecimal !== monadTestnet.id) {
-        try {
-          await provider.request({
-            method: "wallet_switchEthereumChain",
-            params: [{ chainId: `0x${monadTestnet.id.toString(16)}` }],
-          });
-
-          // Wait for switch to complete
-          await new Promise((resolve) => setTimeout(resolve, 1500));
-
-          // Verify switch
-          const newChainId = (await provider.request({
-            method: "eth_chainId",
-          })) as string;
-
-          if (parseInt(newChainId, 16) !== monadTestnet.id) {
-            throw new Error("Chain switch verification failed");
-          }
-        } catch (switchError: any) {
-          // User rejected the request
-          if (switchError.code === 4001) {
-            throw new Error("Please approve the chain switch to continue");
-          }
-
-          // Chain not added to MetaMask
-          if (switchError.code === 4902) {
-            try {
-              await provider.request({
-                method: "wallet_addEthereumChain",
-                params: [
-                  {
-                    chainId: `0x${monadTestnet.id.toString(16)}`,
-                    chainName: monadTestnet.name,
-                    nativeCurrency: monadTestnet.nativeCurrency,
-                    rpcUrls: monadTestnet.rpcUrls.default.http,
-                    blockExplorerUrls: [
-                      monadTestnet.blockExplorers.default.url,
-                    ],
-                  },
-                ],
-              });
-
-              await new Promise((resolve) => setTimeout(resolve, 2000));
-            } catch (addError: any) {
-              if (addError.code === 4001) {
-                throw new Error(
-                  "Please approve adding Monad Testnet to continue"
-                );
-              }
-              throw new Error(
-                "Failed to add Monad Testnet. Please add it manually."
-              );
-            }
-          } else {
-            throw new Error(
-              `Please switch to Monad Testnet (Chain ID: ${monadTestnet.id})`
-            );
-          }
-        }
-      }
-    } catch (err) {
-      if (err instanceof Error && err.message.includes("Please")) {
-        throw err; // Re-throw user-friendly errors
-      }
-      throw new Error(
-        "Failed to verify network. Please check your connection."
-      );
+    // Switch to Monad Testnet
+    const switched = await switchToMonadTestnet();
+    if (!switched) {
+      throw new Error("Failed to switch to Monad Testnet");
     }
 
     const publicClient = createPublicClient({
@@ -155,27 +132,28 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
       transport: http("https://testnet-rpc.monad.xyz"),
     });
 
-    const bundlerUrl = process.env.NEXT_PUBLIC_BUNDLER_RPC_URL;
-
-    if (!bundlerUrl) {
-      console.warn("Bundler URL not configured - using fallback mode");
-    }
-
     // Generate deterministic salt from owner address
-    // This ensures same address always gets same smart account
     const salt = keccak256(toHex(address));
+
+    console.log("Creating smart account with:", {
+      rpcUrl: "https://testnet-rpc.monad.xyz",
+      chainId: monadTestnet.id,
+      ownerAddress: address,
+      salt,
+    });
 
     try {
       const smartAccount = await toMetaMaskSmartAccount({
         client: publicClient,
         implementation: Implementation.Hybrid,
         deployParams: [address, [], [], []], // EOA owner, no passkeys
-        deploySalt: salt, // Deterministic salt
+        deploySalt: salt,
         signer: {
           account: {
             address: address as `0x${string}`,
             async signMessage({ message }: { message: any }) {
               try {
+                const provider = (window as any).ethereum;
                 const signature = await provider.request({
                   method: "personal_sign",
                   params: [message, address],
@@ -184,7 +162,7 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
               } catch (signError: any) {
                 if (signError.code === 4001) {
                   throw new Error(
-                    "Signature request rejected. Please approve to continue."
+                    "Please approve the signature request to continue"
                   );
                 }
                 throw new Error("Failed to sign message. Please try again.");
@@ -192,6 +170,7 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
             },
             async signTypedData(typedData: any) {
               try {
+                const provider = (window as any).ethereum;
                 const signature = await provider.request({
                   method: "eth_signTypedData_v4",
                   params: [address, JSON.stringify(typedData)],
@@ -200,7 +179,7 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
               } catch (signError: any) {
                 if (signError.code === 4001) {
                   throw new Error(
-                    "Signature request rejected. Please approve to continue."
+                    "Please approve the signature request to continue"
                   );
                 }
                 throw new Error("Failed to sign typed data. Please try again.");
@@ -210,233 +189,115 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
         },
       });
 
+      console.log("✅ Smart account created:", smartAccount.address);
+
+      // Check deployment status
+      const code = await publicClient.getBytecode({
+        address: smartAccount.address as `0x${string}`,
+      });
+
+      const isDeployed = code && code !== "0x";
+      console.log("Deployment status:", {
+        address: smartAccount.address,
+        isDeployed,
+      });
+
+      if (!isDeployed) {
+        console.log("ℹ️ Smart account will be deployed on first transaction");
+      }
+
       return smartAccount.address;
     } catch (err) {
-      console.error("Error creating smart account:", err);
-      throw new Error(
-        err instanceof Error
-          ? err.message
-          : "Failed to create smart account. Please try again."
-      );
+      console.error("Smart account creation error:", err);
+      throw err;
     }
   };
 
-  const createSmartAccountWithPasskey = async () => {
-    // Check if we're on localhost and adjust RP ID accordingly
-    const isLocalhost =
-      window.location.hostname === "localhost" ||
-      window.location.hostname === "127.0.0.1";
+  // Handle wallet connection
+  const handleWalletConnect = async () => {
+    setIsConnecting(true);
+    setError(null);
 
-    const rpId = isLocalhost ? "localhost" : window.location.hostname;
-
-    // Check if WebAuthn is supported
-    if (!window.PublicKeyCredential) {
-      throw new Error("WebAuthn is not supported on this device/browser");
-    }
-
-    const credential = (await navigator.credentials.create({
-      publicKey: {
-        challenge: crypto.getRandomValues(new Uint8Array(32)),
-        rp: {
-          name: "FiYield",
-          id: rpId,
-        },
-        user: {
-          id: crypto.getRandomValues(new Uint8Array(32)),
-          name: address || `user-${Date.now()}`,
-          displayName: address || "FiYield User",
-        },
-        pubKeyCredParams: [
-          { alg: -7, type: "public-key" }, // ES256 (preferred)
-          { alg: -257, type: "public-key" }, // RS256
-        ],
-        authenticatorSelection: {
-          authenticatorAttachment: "platform",
-          requireResidentKey: false,
-          residentKey: "preferred",
-          userVerification: "preferred",
-        },
-        timeout: 120000,
-        attestation: "none",
-      },
-    })) as PublicKeyCredential & {
-      response: AuthenticatorAttestationResponse;
-    };
-
-    if (!credential) {
-      throw new Error("Failed to create passkey");
-    }
-
-    // Extract public key from credential
-    const response = credential.response as AuthenticatorAttestationResponse;
-    const attestationObject = response.attestationObject;
-
-    // Parse the attestation object to get public key coordinates
-    // Note: You'll need a CBOR decoder library for this
-    // Install: npm install cbor
-    const CBOR = await import("cbor");
-    const attestation = CBOR.decode(attestationObject);
-    const authData = attestation.authData;
-
-    // Extract public key (last 65 bytes of authData for ES256)
-    // Format: 0x04 + x-coordinate (32 bytes) + y-coordinate (32 bytes)
-    const publicKeyBytes = authData.slice(-65);
-
-    if (publicKeyBytes[0] !== 0x04) {
-      throw new Error("Unsupported public key format");
-    }
-
-    const xCoord = `0x${Buffer.from(publicKeyBytes.slice(1, 33)).toString(
-      "hex"
-    )}`;
-    const yCoord = `0x${Buffer.from(publicKeyBytes.slice(33, 65)).toString(
-      "hex"
-    )}`;
-    const credentialId = credential.id;
-
-    const publicClient = createPublicClient({
-      chain: monadTestnet,
-      transport: http("https://testnet-rpc.monad.xyz"),
-    });
-
-    // Create smart account with passkey
-    const smartAccount = await toMetaMaskSmartAccount({
-      client: publicClient,
-      implementation: Implementation.Hybrid,
-      deployParams: [
-        "0x0000000000000000000000000000000000000000", // No EOA owner for passkey-only accounts
-        [credentialId], // passkey credential IDs
-        [BigInt(xCoord)], // x coordinates
-        [BigInt(yCoord)], // y coordinates
-      ],
-      deploySalt: "0x",
-      signer: {
-        account: {
-          address:
-            "0x0000000000000000000000000000000000000000" as `0x${string}`,
-          async signMessage({ message }: { message: any }) {
-            // Sign using WebAuthn
-            const messageBuffer =
-              typeof message === "string"
-                ? new TextEncoder().encode(message)
-                : message;
-
-            const assertion = (await navigator.credentials.get({
-              publicKey: {
-                challenge: messageBuffer,
-                rpId: rpId,
-                allowCredentials: [
-                  {
-                    id: Buffer.from(credentialId, "base64"),
-                    type: "public-key",
-                  },
-                ],
-                userVerification: "preferred",
-              },
-            })) as PublicKeyCredential;
-
-            const assertionResponse =
-              assertion.response as AuthenticatorAssertionResponse;
-            return `0x${Buffer.from(assertionResponse.signature).toString(
-              "hex"
-            )}` as `0x${string}`;
-          },
-          async signTypedData(typedData: any) {
-            // Similar to signMessage but with typed data
-            const dataHash = keccak256(
-              new TextEncoder().encode(JSON.stringify(typedData))
-            );
-            // Use the same WebAuthn flow as signMessage
-            const messageBuffer =
-              typeof dataHash === "string"
-                ? new TextEncoder().encode(dataHash)
-                : dataHash;
-
-            const assertion = (await navigator.credentials.get({
-              publicKey: {
-                challenge: messageBuffer,
-                rpId: rpId,
-                allowCredentials: [
-                  {
-                    id: Buffer.from(credentialId, "base64"),
-                    type: "public-key",
-                  },
-                ],
-                userVerification: "preferred",
-              },
-            })) as PublicKeyCredential;
-
-            const assertionResponse =
-              assertion.response as AuthenticatorAssertionResponse;
-            return `0x${Buffer.from(assertionResponse.signature).toString(
-              "hex"
-            )}` as `0x${string}`;
-          },
-        },
-      },
-    });
-
-    // Store credential ID for future use
-    if (typeof window !== "undefined") {
-      localStorage.setItem(`passkey_credential_id`, credentialId);
-    }
-
-    return smartAccount.address;
-  };
-
-  const createSmartAccount = async () => {
     try {
-      setIsCreating(true);
-      setError(null);
-
-      let smartAccountAddress: string;
-
-      if (selectedType === "eoa") {
-        smartAccountAddress = await createSmartAccountWithEOA();
+      if (isFarcasterEnvironment()) {
+        // Farcaster: use embedded wallet
+        if (typeof window !== "undefined" && (window as any).ethereum) {
+          await (window as any).ethereum.request({
+            method: "eth_requestAccounts",
+          });
+          connect({ connector: injected() });
+        } else {
+          throw new Error("No wallet provider found in Farcaster");
+        }
       } else {
-        smartAccountAddress = await createSmartAccountWithPasskey();
+        // Web: use MetaMask
+        const metamaskConnector = connectors.find(
+          (c) =>
+            c.id === "metaMaskSDK" || c.name.toLowerCase().includes("metamask")
+        );
+
+        if (metamaskConnector) {
+          connect({ connector: metamaskConnector });
+        } else {
+          // Fallback to injected
+          connect({ connector: injected() });
+        }
       }
 
-      // Store smart account data using the storage utility
-      if (address) {
-        SmartAccountStorage.save(address, {
-          address: smartAccountAddress as `0x${string}`,
-          type: selectedType!,
-          eoaOwner: selectedType === "eoa" ? address : undefined,
-          passkeyCredentialId:
-            selectedType === "passkey"
-              ? "placeholder-credential-id"
-              : undefined,
-        });
-      }
+      // Wait for connection
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      onAddressCreated(smartAccountAddress);
-      onSuccess();
+      if (isConnected && address) {
+        setCurrentStep("account_creation");
+      }
+    } catch (err) {
+      console.error("Wallet connection error:", err);
+      setError(err instanceof Error ? err.message : "Failed to connect wallet");
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  // Handle smart account creation
+  const handleCreateSmartAccount = async () => {
+    if (!address) {
+      setError("Please connect your wallet first");
+      return;
+    }
+
+    setIsCreating(true);
+    setError(null);
+
+    try {
+      const smartAccountAddress = await createSmartAccountWithWallet();
+
+      // Save to storage
+      SmartAccountStorage.save(address, {
+        address: smartAccountAddress as `0x${string}`,
+        type: "eoa",
+        eoaOwner: address,
+      });
+
+      // Notify parent
+      onSuccess(smartAccountAddress);
       onClose();
     } catch (err) {
       console.error("Error creating smart account:", err);
 
-      // Better error messages for common WebAuthn errors
       let errorMessage = "Failed to create smart account";
-
       if (err instanceof Error) {
         if (
-          err.message.includes("not allowed") ||
-          err.message.includes("timed out")
+          err.message.includes("User rejected") ||
+          err.message.includes("approve")
         ) {
-          errorMessage =
-            "Passkey creation was cancelled or timed out. Please try again and approve the prompt.";
-        } else if (err.message.includes("NotSupportedError")) {
-          errorMessage =
-            "Your device/browser doesn't support passkeys. Please try using a wallet instead.";
-        } else if (err.message.includes("InvalidStateError")) {
-          errorMessage =
-            "A passkey already exists. Please use a different method or clear existing passkeys.";
-        } else if (err.message.includes("SecurityError")) {
-          errorMessage =
-            "Security error. Make sure you're on HTTPS or localhost.";
-        } else {
           errorMessage = err.message;
+        } else if (
+          err.message.includes("chain") ||
+          err.message.includes("switch")
+        ) {
+          errorMessage = err.message;
+        } else {
+          errorMessage = err.message || errorMessage;
         }
       }
 
@@ -447,109 +308,82 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
   };
 
   const handleClose = () => {
-    if (!isCreating) {
+    if (!isCreating && !isConnecting) {
       setError(null);
-      setSelectedType(null);
+      setCurrentStep("method_selection");
       onClose();
     }
   };
 
+  const handleBack = () => {
+    if (currentStep === "account_creation") {
+      // Disconnect wallet and go back
+      if (isConnected) {
+        disconnect();
+      }
+      setCurrentStep("method_selection");
+    } else if (currentStep === "wallet_connection") {
+      setCurrentStep("method_selection");
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-white">
-            Create Smart Account
-          </h2>
-          {!isCreating && (
-            <button
-              onClick={handleClose}
-              className="text-gray-400 hover:text-white transition-colors"
-              aria-label="Close"
-            >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-          )}
-        </div>
-
-        <div className="space-y-4">
-          {!selectedType ? (
-            <>
-              <p className="text-gray-300 text-sm mb-4">
-                Choose how you want to create your smart account:
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md">
+      <div className="bg-[#1a1a1a] border border-white/20 rounded-2xl p-8 max-w-lg w-full mx-4 shadow-2xl relative overflow-hidden">
+        <div className="relative z-10">
+          {/* Header */}
+          <div className="flex justify-between items-center mb-8">
+            <div>
+              <h2 className="text-3xl font-bold text-white mb-2">
+                {currentStep === "method_selection" && "Get Started"}
+                {currentStep === "wallet_connection" && "Connect Wallet"}
+                {currentStep === "account_creation" && "Create Smart Account"}
+              </h2>
+              <p className="text-gray-400 text-sm">
+                {currentStep === "method_selection" &&
+                  "Choose how you want to set up your account"}
+                {currentStep === "wallet_connection" &&
+                  "Connect your wallet to continue"}
+                {currentStep === "account_creation" &&
+                  "Enable AI-powered yield optimization"}
               </p>
-
-              {/* Passkey Option - Always available and recommended */}
+            </div>
+            {!isCreating && !isConnecting && (
               <button
-                onClick={() => setSelectedType("passkey")}
-                className="w-full bg-gradient-to-r from-green-500/10 to-emerald-500/10 hover:from-green-500/20 hover:to-emerald-500/20 border border-green-500/30 rounded-lg p-4 text-left transition-all duration-300"
+                onClick={handleClose}
+                className="text-gray-400 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-full"
+                aria-label="Close"
               >
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
-                    <svg
-                      className="w-6 h-6 text-green-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                      />
-                    </svg>
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-white font-semibold">Use Passkey</h3>
-                      <span className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full">
-                        Recommended
-                      </span>
-                    </div>
-                    <p className="text-gray-400 text-xs">
-                      Biometric authentication - no wallet needed
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-2 flex items-center gap-2 text-xs text-green-400">
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                  <span>Most secure • Works immediately</span>
-                </div>
-              </button>
-
-              {/* Connected External Wallet Option */}
-              {hasWallet && (
-                <button
-                  onClick={() => setSelectedType("eoa")}
-                  className="w-full bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg p-4 text-left transition-all duration-300"
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
                 >
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            )}
+          </div>
+
+          <div className="space-y-6">
+            {/* Step 1: Method Selection */}
+            {currentStep === "method_selection" && (
+              <div className="space-y-4">
+                {/* Wallet Option */}
+                <button
+                  onClick={() => {
+                    setCurrentStep("wallet_connection");
+                  }}
+                  className="group w-full bg-white/5 hover:bg-white/10 border border-white/20 hover:border-white/30 rounded-xl p-6 text-left transition-all duration-300 hover:scale-[1.02]"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
                       <svg
                         className="w-6 h-6 text-white"
                         fill="none"
@@ -564,133 +398,320 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
                         />
                       </svg>
                     </div>
-                    <div>
-                      <h3 className="text-white font-semibold">
-                        Use Connected Wallet
-                      </h3>
-                      <p className="text-gray-400 text-xs">
-                        Use your external wallet (MetaMask, etc.)
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h3 className="text-lg font-semibold text-white">
+                          Connect with Wallet
+                        </h3>
+                        <span className="bg-blue-500/20 text-blue-400 text-xs px-3 py-1 rounded-full font-medium">
+                          Recommended
+                        </span>
+                      </div>
+                      <p className="text-gray-400 text-sm mb-3">
+                        {isFarcasterEnvironment()
+                          ? "Use your Farcaster wallet"
+                          : "Use MetaMask or other wallet"}
+                      </p>
+                      <div className="flex items-center gap-2 text-sm text-blue-400">
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M5 13l4 4L19 7"
+                          />
+                        </svg>
+                        <span>Secure • Quick setup</span>
+                      </div>
+                    </div>
+                  </div>
+                </button>
+
+                {/* Social Login Option - Coming Soon */}
+                <button
+                  disabled
+                  className="group w-full bg-white/5 border border-white/10 rounded-xl p-6 text-left opacity-50 cursor-not-allowed"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center">
+                      <svg
+                        className="w-6 h-6 text-gray-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                        />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h3 className="text-lg font-semibold text-white">
+                          Social Login
+                        </h3>
+                        <span className="bg-purple-500/20 text-purple-400 text-xs px-3 py-1 rounded-full font-medium">
+                          Coming Soon
+                        </span>
+                      </div>
+                      <p className="text-gray-400 text-sm">
+                        Sign in with Google, Twitter, or email
                       </p>
                     </div>
                   </div>
                 </button>
-              )}
 
-              <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
-                <p className="text-blue-400 text-xs">
-                  💡 <strong>New to crypto?</strong> Use Passkey for the easiest
-                  experience - no wallet needed!
-                </p>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="bg-white/5 rounded-lg p-4 space-y-2 mb-4">
-                <div className="flex items-center gap-2 text-sm text-gray-300">
-                  <svg
-                    className="w-5 h-5 text-green-500"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                  <span>Gasless transactions</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-gray-300">
-                  <svg
-                    className="w-5 h-5 text-green-500"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                  <span>Enhanced security</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-gray-300">
-                  <svg
-                    className="w-5 h-5 text-green-500"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                  <span>Batch transactions</span>
+                <div className="bg-white/5 border border-white/20 rounded-xl p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 bg-blue-500/20 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <svg
+                        className="w-4 h-4 text-blue-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-blue-400 text-sm font-medium mb-1">
+                        🚀 Smart Account Benefits
+                      </p>
+                      <p className="text-blue-300 text-sm">
+                        Gasless transactions, enhanced security, and AI-powered
+                        yield optimization
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
+            )}
 
-              {error && (
-                <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
-                  <p className="text-red-400 text-sm">{error}</p>
+            {/* Step 2: Wallet Connection */}
+            {currentStep === "wallet_connection" && (
+              <div className="space-y-6">
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <svg
+                      className="w-8 h-8 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-semibold text-white mb-2">
+                    {isFarcasterEnvironment()
+                      ? "Connect Farcaster Wallet"
+                      : "Connect Your Wallet"}
+                  </h3>
+                  <p className="text-gray-400 text-sm mb-6">
+                    {isFarcasterEnvironment()
+                      ? "Use your embedded Farcaster wallet"
+                      : "We'll use MetaMask to create your smart account"}
+                  </p>
                 </div>
-              )}
 
-              <div className="flex gap-3">
+                {error && (
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
+                    <p className="text-red-400 text-sm">{error}</p>
+                  </div>
+                )}
+
                 <button
-                  onClick={() => setSelectedType(null)}
-                  disabled={isCreating}
-                  className="flex-1 bg-white/5 text-white py-3 rounded-lg font-medium transition-all duration-300 hover:bg-white/10 disabled:opacity-50"
+                  onClick={handleWalletConnect}
+                  disabled={isConnecting}
+                  className="w-full bg-white text-black hover:bg-gray-100 py-4 rounded-xl font-semibold transition-all duration-300 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isConnecting ? (
+                    <span className="flex items-center justify-center gap-3">
+                      <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                      <span>Connecting...</span>
+                    </span>
+                  ) : (
+                    "Connect Wallet"
+                  )}
+                </button>
+
+                <button
+                  onClick={handleBack}
+                  disabled={isConnecting}
+                  className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white py-3 rounded-xl font-medium transition-all duration-300 disabled:opacity-50"
                 >
                   Back
                 </button>
-                <button
-                  onClick={createSmartAccount}
-                  disabled={isCreating}
-                  className="flex-1 bg-white text-black py-3 rounded-lg font-medium transition-all duration-300 hover:bg-white/90 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isCreating ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <svg
-                        className="animate-spin h-5 w-5"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        />
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        />
-                      </svg>
-                      Creating...
-                    </span>
-                  ) : (
-                    "Create Account"
-                  )}
-                </button>
               </div>
+            )}
 
-              <p className="text-xs text-gray-400 text-center">
-                {selectedType === "passkey"
-                  ? "You'll be prompted to use your device's biometric authentication"
-                  : "Your smart account will use your wallet as the owner"}
-              </p>
-            </>
-          )}
+            {/* Step 3: Account Creation */}
+            {currentStep === "account_creation" && (
+              <div className="space-y-6">
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <svg
+                      className="w-8 h-8 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-semibold text-white mb-2">
+                    Wallet Connected!
+                  </h3>
+                  <p className="text-gray-400 text-sm mb-2">
+                    {address
+                      ? `${address.slice(0, 6)}...${address.slice(-4)}`
+                      : ""}
+                  </p>
+                  <p className="text-gray-500 text-xs">
+                    Now let&apos;s create your smart account
+                  </p>
+                </div>
+
+                <div className="bg-white/5 rounded-lg p-4 space-y-2">
+                  <div className="flex items-center gap-2 text-sm text-gray-300">
+                    <svg
+                      className="w-5 h-5 text-green-500"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                    <span>Gasless transactions</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-gray-300">
+                    <svg
+                      className="w-5 h-5 text-green-500"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                    <span>Enhanced security with delegation</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-gray-300">
+                    <svg
+                      className="w-5 h-5 text-green-500"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                    <span>AI-powered yield optimization</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-gray-300">
+                    <svg
+                      className="w-5 h-5 text-green-500"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                    <span>Batch multiple transactions</span>
+                  </div>
+                </div>
+
+                {error && (
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
+                    <p className="text-red-400 text-sm">{error}</p>
+                  </div>
+                )}
+
+                <div className="flex gap-4">
+                  <button
+                    onClick={handleBack}
+                    disabled={isCreating}
+                    className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white py-4 rounded-xl font-medium transition-all duration-300 disabled:opacity-50"
+                  >
+                    Back
+                  </button>
+                  <button
+                    onClick={handleCreateSmartAccount}
+                    disabled={isCreating}
+                    className="flex-1 bg-white text-black hover:bg-gray-100 py-4 rounded-xl font-semibold transition-all duration-300 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isCreating ? (
+                      <span className="flex items-center justify-center gap-3">
+                        <div className="w-5 h-5 border-2 border-black/20 border-t-black rounded-full animate-spin"></div>
+                        <span>Creating...</span>
+                      </span>
+                    ) : (
+                      <span className="flex items-center justify-center gap-2">
+                        <svg
+                          className="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                          />
+                        </svg>
+                        Create Smart Account
+                      </span>
+                    )}
+                  </button>
+                </div>
+
+                <p className="text-sm text-gray-400 text-center">
+                  Your smart account will be deployed on Monad Testnet
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
