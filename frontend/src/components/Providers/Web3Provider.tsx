@@ -1,9 +1,10 @@
 "use client";
-import { PrivyProvider } from "@privy-io/react-auth";
-import { WagmiProvider, createConfig, http } from "wagmi";
+import { WagmiProvider } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { defineChain } from "viem";
 import { useEffect } from "react";
+import { RainbowKitProvider, getDefaultConfig } from "@rainbow-me/rainbowkit";
+import "@rainbow-me/rainbowkit/styles.css";
 import {
   initializeMetaMaskProvider,
   suppressProviderConflictErrors,
@@ -11,7 +12,7 @@ import {
 
 // Define Monad Testnet chain with CORRECT chain ID
 export const monadTestnet = defineChain({
-  id: 10143, // CORRECT: Official Monad Testnet Chain ID
+  id: 10143,
   name: "Monad Testnet",
   network: "monad-testnet",
   nativeCurrency: {
@@ -38,12 +39,15 @@ export const monadTestnet = defineChain({
   testnet: true,
 });
 
-// Create Wagmi config with Monad Testnet
-const config = createConfig({
+// Create Wagmi config with RainbowKit
+// Note: You need to set  in your .env.local file
+// Get a free project ID from https://cloud.walletconnect.com/
+const config = getDefaultConfig({
+  appName: "FiYield",
+  projectId:
+    process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "demo-project-id",
   chains: [monadTestnet],
-  transports: {
-    [monadTestnet.id]: http("https://testnet-rpc.monad.xyz"),
-  },
+  ssr: true,
 });
 
 // Create QueryClient instance outside component to avoid recreating on each render
@@ -70,29 +74,10 @@ export default function Web3Provider({
   }, []);
 
   return (
-    <PrivyProvider
-      appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID!}
-      config={{
-        loginMethods: ["wallet", "google", "email"],
-        embeddedWallets: {
-          ethereum: {
-            createOnLogin: "users-without-wallets",
-          },
-        },
-        // Explicitly configure supported chains
-        supportedChains: [monadTestnet],
-        // Configure appearance to avoid conflicts
-        appearance: {
-          theme: "light",
-          accentColor: "#676FFF",
-        },
-      }}
-    >
-      <WagmiProvider config={config}>
-        <QueryClientProvider client={queryClient}>
-          {children}
-        </QueryClientProvider>
-      </WagmiProvider>
-    </PrivyProvider>
+    <WagmiProvider config={config}>
+      <QueryClientProvider client={queryClient}>
+        <RainbowKitProvider>{children}</RainbowKitProvider>
+      </QueryClientProvider>
+    </WagmiProvider>
   );
 }

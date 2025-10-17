@@ -15,7 +15,7 @@ export function useERC20Info(tokenAddress: string) {
     address: tokenAddress as `0x${string}`,
     abi: ERC20_ABI,
     functionName: "balanceOf",
-    args: [CONTRACT_ADDRESSES.YIELDMAKER_VAULT],
+    args: [CONTRACT_ADDRESSES.FI_YIELD_VAULT],
   });
 
   const { data: decimals } = useReadContract({
