@@ -48,7 +48,14 @@ const FundsManagement: React.FC<FundsManagementProps> = ({
             timestamp: new Date(tx.timestamp || Date.now()),
           };
         });
-        setRecentTransactions(transactions.slice(-5)); // Show last 5 transactions
+        // Sort by timestamp descending and take the most recent 5
+        const sortedTransactions = transactions
+          .sort(
+            (a: Transaction, b: Transaction) =>
+              new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+          )
+          .slice(0, 5);
+        setRecentTransactions(sortedTransactions);
       } catch (error) {
         console.error(
           "Error loading transactions, clearing localStorage:",
@@ -63,43 +70,78 @@ const FundsManagement: React.FC<FundsManagementProps> = ({
     type: "deposit" | "withdraw" | "send",
     amount: number
   ) => {
+    // Ensure amount is a valid positive number
+    const validAmount = Math.abs(Number(amount)) || 0;
+
     const newTransaction: Transaction = {
-      id: Date.now().toString(),
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // More unique ID
       type,
-      amount: Number(amount), // Convert to number
+      amount: validAmount,
       timestamp: new Date(),
       status: "completed",
     };
 
+    // Get existing transactions from localStorage
+    const existingTransactions = JSON.parse(
+      localStorage.getItem("userTransactions") || "[]"
+    );
+
+    // Check for duplicates based on amount, type, and recent timestamp (within 5 seconds)
+    const isDuplicate = existingTransactions.some((tx: Transaction) => {
+      const timeDiff = Math.abs(
+        new Date(tx.timestamp).getTime() - newTransaction.timestamp.getTime()
+      );
+      return (
+        tx.type === newTransaction.type &&
+        Math.abs(tx.amount - newTransaction.amount) < 0.01 &&
+        timeDiff < 5000
+      ); // 5 seconds
+    });
+
+    if (isDuplicate) {
+      console.log("Duplicate transaction detected, skipping...");
+      return;
+    }
+
+    // Add new transaction to the beginning of the list
     const updatedTransactions = [newTransaction, ...recentTransactions].slice(
       0,
       5
     );
     setRecentTransactions(updatedTransactions);
 
-    // Save to localStorage
-    const allTransactions = JSON.parse(
-      localStorage.getItem("userTransactions") || "[]"
+    // Save to localStorage with new transaction at the beginning
+    const allTransactions = [newTransaction, ...existingTransactions];
+
+    // Keep only the most recent 20 transactions to prevent localStorage from growing too large
+    const limitedTransactions = allTransactions.slice(0, 20);
+    localStorage.setItem(
+      "userTransactions",
+      JSON.stringify(limitedTransactions)
     );
-    allTransactions.push(newTransaction);
-    localStorage.setItem("userTransactions", JSON.stringify(allTransactions));
   };
 
   const handleDepositSuccess = (amount: number) => {
-    onBalanceUpdate((userBalance || 0) + amount);
-    addTransaction("deposit", amount);
+    console.log("Deposit success - amount:", amount, "type:", typeof amount);
+    const validAmount = Number(amount) || 0;
+    onBalanceUpdate((userBalance || 0) + validAmount);
+    addTransaction("deposit", validAmount);
     setIsDepositOpen(false);
   };
 
   const handleWithdrawSuccess = (amount: number) => {
-    onBalanceUpdate((userBalance || 0) - amount);
-    addTransaction("withdraw", amount);
+    console.log("Withdraw success - amount:", amount, "type:", typeof amount);
+    const validAmount = Number(amount) || 0;
+    onBalanceUpdate((userBalance || 0) - validAmount);
+    addTransaction("withdraw", validAmount);
     setIsWithdrawOpen(false);
   };
 
   const handleSendSuccess = (amount: number) => {
-    onBalanceUpdate((userBalance || 0) - amount);
-    addTransaction("send", amount);
+    console.log("Send success - amount:", amount, "type:", typeof amount);
+    const validAmount = Number(amount) || 0;
+    onBalanceUpdate((userBalance || 0) - validAmount);
+    addTransaction("send", validAmount);
     setIsSendOpen(false);
   };
 
@@ -407,7 +449,10 @@ const FundsManagement: React.FC<FundsManagementProps> = ({
                     )}`}
                   >
                     {transaction.type === "deposit" ? "+" : "-"}$
-                    {(transaction.amount || 0).toLocaleString()}
+                    {Number(transaction.amount || 0).toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
                   </p>
                   <div className="flex items-center gap-2 mt-1">
                     <div
