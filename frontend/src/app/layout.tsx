@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Web3Provider from "@/components/Providers/Web3Provider";
-
+import FarcasterProvider from "@/components/Providers/FarcasterProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -98,7 +98,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased font-sans">
-        <Web3Provider>{children}</Web3Provider>
+        <FarcasterProvider>
+          <Web3Provider>{children}</Web3Provider>
+        </FarcasterProvider>
       </body>
     </html>
   );
