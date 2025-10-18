@@ -184,7 +184,6 @@ export const PortfolioSection: React.FC = () => {
       },
     ];
 
-
     setVaultBalances(balances);
 
     // Calculate total portfolio value

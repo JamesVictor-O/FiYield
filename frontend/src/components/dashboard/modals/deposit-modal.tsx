@@ -13,7 +13,7 @@ import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
 import { Label } from "../../ui/label";
 import { Badge } from "../../ui/badge";
-import { useVaultDeposit } from "@/hooks/contract/useVault";
+import { useMultiTokenCoordinator } from "@/hooks/contract/useMultiTokenCoordinator";
 import {
   useTokenApproval,
   useUserTokenBalance,
@@ -29,17 +29,13 @@ interface DepositModalProps {
   currentBalance: number;
 }
 
-const DepositModal: React.FC<DepositModalProps> = ({
-  isOpen,
-  onClose,
-  onSuccess,
-}) => {
+const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) => {
   const [amount, setAmount] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [needsApproval, setNeedsApproval] = useState(false);
   const [selectedToken, setSelectedToken] = useState(
-    "0x5D876D73f4441D5f2438B1A3e2A51771B337F27A" // Default to USDC
+    "0xd455943dbc86A559A822AF08f5FDdD6B122E0748" // Default to MockUSDC
   );
   const [pendingDeposit, setPendingDeposit] = useState<{
     amount: string;
@@ -49,39 +45,15 @@ const DepositModal: React.FC<DepositModalProps> = ({
 
   const { address } = useAccount();
 
-  // Get the correct vault address for the selected token
-  const getVaultAddress = (tokenAddress: string): string => {
-    const tokenMap: { [key: string]: string } = {
-      "0x5D876D73f4441D5f2438B1A3e2A51771B337F27A":
-        CONTRACT_ADDRESSES.USDC_VAULT, // USDC
-      "0x6BB379A2056d1304E73012b99338F8F581eE2E18":
-        CONTRACT_ADDRESSES.WBTC_VAULT, // WBTC
-      "0xB5481b57fF4e23eA7D2fda70f3137b16D0D99118":
-        CONTRACT_ADDRESSES.CURR_VAULT, // CURR (pending)
-      "0xd455943dbc86A559A822AF08f5FDdD6B122E0748":
-        CONTRACT_ADDRESSES.MOCK_USDC_VAULT, // MockUSDC
-    };
+  // Use MultiTokenCoordinatorVault as the main vault for all tokens
+  const currentVaultAddress = CONTRACT_ADDRESSES.MULTI_TOKEN_COORDINATOR;
 
-    const vaultAddress = tokenMap[tokenAddress];
-
-    // Check if vault is deployed (not zero address)
-    if (vaultAddress === "0x0000000000000000000000000000000000000000") {
-      throw new Error("Vault not yet deployed for this token");
-    }
-
-    return vaultAddress;
-  };
-
-  const currentVaultAddress = getVaultAddress(selectedToken);
-
-  // Smart contract hooks
+  // Multi-token coordinator hook
   const {
-    deposit,
+    deposit: coordinatorDeposit,
     isPending: isDepositPending,
-    isConfirming: isDepositConfirming,
-    isConfirmed: isDepositConfirmed,
     error: depositError,
-  } = useVaultDeposit(currentVaultAddress);
+  } = useMultiTokenCoordinator();
 
   const {
     approve,
@@ -106,11 +78,7 @@ const DepositModal: React.FC<DepositModalProps> = ({
   );
 
   // Overall loading state
-  const isLoading =
-    isApprovePending ||
-    isApproveConfirming ||
-    isDepositPending ||
-    isDepositConfirming;
+  const isLoading = isApprovePending || isApproveConfirming || isDepositPending;
 
   const validateAmount = (value: string): boolean => {
     const numValue = parseFloat(value);
@@ -210,27 +178,19 @@ const DepositModal: React.FC<DepositModalProps> = ({
         return;
       }
 
-      // Check if vault is deployed for the selected token
-      try {
-        getVaultAddress(selectedToken);
-      } catch {
-        setError(
-          "Vault not yet deployed for this token. Please try USDC or WBTC."
-        );
-        return;
-      }
+      // MultiTokenCoordinatorVault supports all tokens, no need to check
 
       // Check if approval is needed
       await checkApprovalNeeded(amount);
 
       if (needsApproval) {
-        // Trigger approval with vault address as spender
+        // Trigger approval with coordinator vault address as spender
         await approve(currentVaultAddress, amount);
         // Store pending deposit to trigger after approval
         setPendingDeposit({ amount, address, decimals: tokenDecimals });
       } else {
-        // Proceed with deposit if approval is not needed
-        await deposit(amount, address, tokenDecimals);
+        // Proceed with deposit using MultiTokenCoordinatorVault
+        await coordinatorDeposit(selectedToken, amount);
       }
     } catch (err) {
       console.error("Transaction error:", err);
@@ -247,17 +207,13 @@ const DepositModal: React.FC<DepositModalProps> = ({
     if (isApproveConfirmed && pendingDeposit) {
       // Wait a moment for blockchain state to update, then deposit
       const timer = setTimeout(() => {
-        deposit(
-          pendingDeposit.amount,
-          pendingDeposit.address,
-          pendingDeposit.decimals
-        );
+        coordinatorDeposit(selectedToken, pendingDeposit.amount);
         setPendingDeposit(null); // Clear pending state
       }, 2000);
 
       return () => clearTimeout(timer);
     }
-  }, [isApproveConfirmed, pendingDeposit, deposit]);
+  }, [isApproveConfirmed, pendingDeposit, coordinatorDeposit, selectedToken]);
 
   // Handle errors
   useEffect(() => {
@@ -301,26 +257,14 @@ const DepositModal: React.FC<DepositModalProps> = ({
     }
   }, [isLoading, onClose]);
 
-  // Handle deposit success
-  useEffect(() => {
-    if (isDepositConfirmed) {
-      setSuccess(true);
-      refetchBalance();
-
-      const timer = setTimeout(() => {
-        onSuccess(parseFloat(amount));
-        handleClose();
-      }, 1500);
-
-      return () => clearTimeout(timer);
-    }
-  }, [isDepositConfirmed, amount, onSuccess, refetchBalance, handleClose]);
+  // Handle deposit success - this will be triggered by the parent component
+  // when the deposit transaction is confirmed
 
   const getStepMessage = () => {
     if (isApprovePending || isApproveConfirming) {
       return "Step 1: Approving token access...";
     }
-    if (isDepositPending || isDepositConfirming) {
+    if (isDepositPending) {
       return "Step 2: Depositing funds...";
     }
     return "Processing...";

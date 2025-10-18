@@ -5,12 +5,11 @@ import FundsManagement from "./FundsManagement";
 import StrategyManager from "../manager/StrategyManager";
 import AIDelegationModal from "./modals/ai-delegation-modal";
 import { useVaultBalance, useVaultInfo } from "@/hooks/contract/useVault";
+import { useMultiTokenBalance } from "@/hooks/contract/useMultiTokenCoordinator";
 import { useAvailableStrategies } from "@/hooks/contract/useStrategies";
 import { useMockAavePoolAPY } from "@/hooks/contract/useMockAavePool";
 import { useAaveStrategyBalance } from "@/hooks/contract/useAaveStrategy";
 import { useAccount, useReadContract } from "wagmi";
-import { CONTRACT_ADDRESSES } from "@/components/contract/addresses";
-import FiYieldVaultABI from "@/components/contract/abis/FiYieldVault.json";
 
 interface MainDashboardProps {
   user: User;
@@ -23,46 +22,31 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
   user,
   onOnboardingComplete,
 }) => {
-  const [showWelcome, setShowWelcome] = useState(user.isNewUser);
+  const { address } = useAccount();
+
+  const [showWelcome, setShowWelcome] = useState(() => {
+    // Check if user has completed onboarding
+    if (address) {
+      const hasCompletedOnboarding = localStorage.getItem(
+        `onboarding_completed_${address}`
+      );
+      return !hasCompletedOnboarding && user.isNewUser;
+    }
+    return user.isNewUser;
+  });
   const [userInitialDeposit, setUserInitialDeposit] = useState(0);
   const [showDelegationModal, setShowDelegationModal] = useState(false);
-
-  const { address } = useAccount();
 
   // Smart contract hooks for real-time data
   const { balance: vaultBalance, isLoading: balanceLoading } =
     useVaultBalance();
   const { strategy: currentStrategy } = useVaultInfo();
 
-  // Direct contract call for debugging
-  const { data: directVaultBalance, error: directVaultError } = useReadContract(
-    {
-      address: CONTRACT_ADDRESSES.FI_YIELD_VAULT as `0x${string}`,
-      abi: FiYieldVaultABI.abi,
-      functionName: "getBalance",
-      args: address ? [address as `0x${string}`] : undefined,
-      query: { enabled: !!address },
-    }
-  );
-
-  // Check vault's total assets to see if there's any money in the vault
-  const { data: totalAssets, error: totalAssetsError } = useReadContract({
-    address: CONTRACT_ADDRESSES.FI_YIELD_VAULT as `0x${string}`,
-    abi: FiYieldVaultABI.abi,
-    functionName: "totalAssets",
-    query: { enabled: !!address },
-  });
-
-  // Check vault's asset address to confirm it's using MockUSDC
-  const { data: vaultAsset, error: vaultAssetError } = useReadContract({
-    address: CONTRACT_ADDRESSES.FI_YIELD_VAULT as `0x${string}`,
-    abi: FiYieldVaultABI.abi,
-    functionName: "asset",
-    query: { enabled: !!address },
-  });
+  // Multi-token coordinator balance
+  const { totalValue: coordinatorBalance } = useMultiTokenBalance(address);
 
   // Check strategy's total assets to see if funds are there
-  const { data: strategyAssets, error: strategyAssetsError } = useReadContract({
+  const { data: strategyAssets} = useReadContract({
     address: currentStrategy as `0x${string}`,
     abi: [
       {
@@ -79,7 +63,6 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
 
   const availableStrategies = useAvailableStrategies();
 
-  
   const {} = useMockAavePoolAPY();
 
   // Get Aave strategy balance
@@ -91,85 +74,19 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
       ? Number(vaultBalance) / 1e6 // MockUSDC has 6 decimals
       : 0;
 
-  // Use the vault balance from the main FI_YIELD_VAULT
-  // If funds are invested in strategy, use strategy balance instead
   const strategyBalanceFormatted = strategyAssets
     ? Number(strategyAssets) / 1e6
     : 0;
   const userBalance =
-    strategyBalanceFormatted > 0
+    coordinatorBalance > 0
+      ? coordinatorBalance
+      : strategyBalanceFormatted > 0
       ? strategyBalanceFormatted
       : vaultBalanceFormatted || 0;
 
-  // Debug logging
-  useEffect(() => {
-    console.log("🔍 Balance Debug Info:", {
-      address,
-      vaultBalance: vaultBalance?.toString(),
-      vaultBalanceFormatted,
-      userBalance,
-      userInitialDeposit,
-      currentStrategy,
-      availableStrategies: availableStrategies.map((s) => ({
-        name: s.name,
-        address: s.address,
-      })),
-      // Additional debugging
-      vaultBalanceType: typeof vaultBalance,
-      vaultBalanceValue: vaultBalance,
-      isVaultBalanceZero: vaultBalance === BigInt(0),
-      isVaultBalanceNull: vaultBalance === null,
-      isVaultBalanceUndefined: vaultBalance === undefined,
-      // Contract address debugging
-      fiYieldVaultAddress: CONTRACT_ADDRESSES.FI_YIELD_VAULT,
-      mockUsdcVaultAddress: CONTRACT_ADDRESSES.MOCK_USDC_VAULT,
-      addressesMatch:
-        CONTRACT_ADDRESSES.FI_YIELD_VAULT ===
-        CONTRACT_ADDRESSES.MOCK_USDC_VAULT,
-      // Direct contract call debugging
-      directVaultBalance: directVaultBalance?.toString(),
-      directVaultError: directVaultError?.message,
-      directVaultBalanceFormatted: directVaultBalance
-        ? Number(directVaultBalance) / 1e6
-        : 0,
-      // Vault state debugging
-      totalAssets: totalAssets?.toString(),
-      totalAssetsError: totalAssetsError?.message,
-      totalAssetsFormatted: totalAssets ? Number(totalAssets) / 1e6 : 0,
-      vaultAsset: vaultAsset,
-      vaultAssetError: vaultAssetError?.message,
-      expectedMockUsdc: CONTRACT_ADDRESSES.MOCK_USDC,
-      assetMatches: vaultAsset === CONTRACT_ADDRESSES.MOCK_USDC,
-      // Strategy debugging
-      strategyAssets: strategyAssets?.toString(),
-      strategyAssetsError: strategyAssetsError?.message,
-      strategyAssetsFormatted: strategyAssets
-        ? Number(strategyAssets) / 1e6
-        : 0,
-      // Combined balance logic
-      strategyBalanceFormatted,
-      finalUserBalance: userBalance,
-    });
-  }, [
-    address,
-    vaultBalance,
-    vaultBalanceFormatted,
-    userBalance,
-    userInitialDeposit,
-    currentStrategy,
-    availableStrategies,
-    directVaultBalance,
-    directVaultError,
-    totalAssets,
-    totalAssetsError,
-    vaultAsset,
-    vaultAssetError,
-    strategyAssets,
-    strategyAssetsError,
-    strategyBalanceFormatted,
-  ]);
+  
 
-  // Load user's initial deposit from localStorage (or could be from blockchain events)
+  // Load user's initial deposit and risk profile from localStorage
   useEffect(() => {
     if (address) {
       const savedInitialDeposit = localStorage.getItem(
@@ -186,8 +103,17 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
           );
         }
       }
+
+      // Load risk profile from localStorage
+      const savedRiskProfile = localStorage.getItem(`risk_profile_${address}`);
+      if (savedRiskProfile && user.riskProfile !== savedRiskProfile) {
+        user.riskProfile = savedRiskProfile as
+          | "conservative"
+          | "moderate"
+          | "aggressive";
+      }
     }
-  }, [address, vaultBalanceFormatted]);
+  }, [address, vaultBalanceFormatted, user]);
 
   // Calculate real earnings - with proper defaults
   const realEarnings = Math.max(
@@ -214,6 +140,12 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
   ) => {
     user.riskProfile = riskProfile;
     setShowWelcome(false);
+
+    // Persist onboarding completion
+    if (address) {
+      localStorage.setItem(`onboarding_completed_${address}`, "true");
+      localStorage.setItem(`risk_profile_${address}`, riskProfile);
+    }
 
     if (onOnboardingComplete) {
       onOnboardingComplete(riskProfile);
@@ -254,7 +186,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
         {/* Stats Grid */}
         <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {/* Total Portfolio */}
-          <div className="bg-white/5 border h-fit border-white/10 rounded-2xl p-2 md:p-6 hover:border-white/20 transition-colors duration-300">
+          <div className="bg-white/5 border h-fit border-white/10 rounded-2xl p-3 md:p-6 hover:border-white/20 transition-colors duration-300">
             <div className="flex items-center gap-3 md:mb-4">
               <div className="w-10 h-10 rounded-full hidden md:flex bg-white/5 border border-white/10 items-center justify-center">
                 <svg
@@ -283,7 +215,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
           </div>
 
           {/* Current Earnings */}
-          <div className="bg-white/5 border h-fit border-white/10 rounded-2xl p-2 md:p-6 hover:border-white/20 transition-colors duration-300">
+          <div className="bg-white/5 border h-fit border-white/10 rounded-2xl p-3 md:p-6 hover:border-white/20 transition-colors duration-300">
             <div className="flex items-center gap-3 md:mb-4">
               <div className="w-10 h-10 hidden md:flex rounded-full bg-white/5 border border-white/10  items-center justify-center">
                 <svg
@@ -313,7 +245,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
                 )}
               </div>
             </div>
-            <p className="text-sm text-gray-400">
+            <p className="text-sm text-gray-400 hidden md:block">
               {userInitialDeposit > 0
                 ? `${((realEarnings / userInitialDeposit) * 100).toFixed(
                     2
@@ -323,7 +255,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
           </div>
 
           {/* Risk Level */}
-          <div className="bg-white/5 border h-fit border-white/10 rounded-2xl p-2 md:p-6 hover:border-white/20 transition-colors duration-300">
+          <div className="bg-white/5 border h-fit border-white/10 rounded-2xl p-3 md:p-6 hover:border-white/20 transition-colors duration-300">
             <div className="flex items-center gap-3 md:mb-4">
               <div className="w-10 hidden md:flex h-10 rounded-full bg-white/5 border border-white/10  items-center justify-center">
                 <svg
@@ -344,7 +276,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
                 <p className="text-sm text-gray-400 font-medium">
                   Risk Profile
                 </p>
-                <h3 className=" text-sm md:text-2xl font-bold text-white font-pop capitalize">
+                <h3 className=" text-lg md:text-2xl font-bold text-white font-pop capitalize">
                   {user.riskProfile || "moderate"}
                 </h3>
               </div>
@@ -352,7 +284,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
           </div>
 
           {/* Active Strategy */}
-          <div className="bg-white/5 border h-fit border-white/10 rounded-2xl p-2 md:p-6 hover:border-white/20 transition-colors duration-300">
+          <div className="bg-white/5 border h-fit border-white/10 rounded-2xl p-3 md:p-6 hover:border-white/20 transition-colors duration-300">
             <div className="flex  items-center gap-3 md:mb-4">
               <div className="w-10 h-10 hidden md:flex rounded-full bg-white/5 border border-white/10 items-center justify-center">
                 <svg
@@ -388,7 +320,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
           <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-2xl p-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center">
+                <div className="w-12 h-12 hidden md:flex rounded-full bg-blue-500/20 border border-blue-500/30 items-center justify-center">
                   <svg
                     className="w-6 h-6 text-blue-400"
                     fill="none"

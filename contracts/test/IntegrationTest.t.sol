@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
 import "../src/core/FiYieldVaultOptimized.sol";
-import "../src/AgentExecutorOptimized.sol";
+import "../src/AgentExecutor.sol";
 import "../src/AaveStrategy.sol";
 import "../src/MockAavePool.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -20,7 +20,7 @@ contract MockUSDC is ERC20 {
 
 contract IntegrationTest is Test {
     FiYieldVaultOptimized public vault;
-    AgentExecutorOptimized public agentExecutor;
+    AgentExecutor public agentExecutor;
     AaveStrategy public strategy;
     MockAavePool public mockAavePool;
     MockUSDC public mockUSDC;
@@ -48,7 +48,7 @@ contract IntegrationTest is Test {
         );
 
         // Deploy agent executor
-        agentExecutor = new AgentExecutorOptimized();
+        agentExecutor = new AgentExecutor();
 
         // Configure vault
         vault.setAgentExecutor(address(agentExecutor));

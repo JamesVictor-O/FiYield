@@ -279,7 +279,7 @@ const FundsManagement: React.FC<FundsManagementProps> = ({
           className="bg-white text-black hover:bg-white/90 py-3 px-4 rounded-lg font-medium text-sm transition-colors duration-300"
         >
           <svg
-            className="w-4 h-4 mr-2"
+            className="w-4 h-4 mr-2 hidden md:block"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -298,7 +298,7 @@ const FundsManagement: React.FC<FundsManagementProps> = ({
           className="bg-white/10 border border-white/20 text-white hover:bg-white/20 py-3 px-4 rounded-lg font-medium text-sm transition-colors duration-300"
         >
           <svg
-            className="w-4 h-4 mr-2"
+            className="w-4 h-4 mr-2 hidden md:block"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -317,7 +317,7 @@ const FundsManagement: React.FC<FundsManagementProps> = ({
           className="bg-white/10 border border-white/20 text-white hover:bg-white/20 py-3 px-4 rounded-lg font-medium text-sm transition-colors duration-300"
         >
           <svg
-            className="w-4 h-4 mr-2"
+            className="w-4 h-4 mr-2 hidden md:block"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"

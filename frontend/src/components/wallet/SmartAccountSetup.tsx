@@ -72,42 +72,42 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
         return true;
       }
 
-      try {
-        await provider.request({
-          method: "wallet_switchEthereumChain",
-          params: [{ chainId: `0x${monadTestnet.id.toString(16)}` }],
-        });
-
-        // Wait and verify
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-        const newChainId = await provider.request({ method: "eth_chainId" });
-        return parseInt(newChainId, 16) === monadTestnet.id;
-      } catch (switchError: any) {
-        if (switchError.code === 4001) {
-          throw new Error("Please approve the chain switch to continue");
-        }
-
-        if (switchError.code === 4902) {
+        try {
           await provider.request({
-            method: "wallet_addEthereumChain",
-            params: [
-              {
-                chainId: `0x${monadTestnet.id.toString(16)}`,
-                chainName: monadTestnet.name,
-                nativeCurrency: monadTestnet.nativeCurrency,
-                rpcUrls: monadTestnet.rpcUrls.default.http,
-                blockExplorerUrls: [monadTestnet.blockExplorers.default.url],
-              },
-            ],
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: `0x${monadTestnet.id.toString(16)}` }],
           });
 
-          await new Promise((resolve) => setTimeout(resolve, 2000));
+        // Wait and verify
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+        const newChainId = await provider.request({ method: "eth_chainId" });
+        return parseInt(newChainId, 16) === monadTestnet.id;
+        } catch (switchError: any) {
+          if (switchError.code === 4001) {
+            throw new Error("Please approve the chain switch to continue");
+          }
+
+          if (switchError.code === 4902) {
+              await provider.request({
+                method: "wallet_addEthereumChain",
+                params: [
+                  {
+                    chainId: `0x${monadTestnet.id.toString(16)}`,
+                    chainName: monadTestnet.name,
+                    nativeCurrency: monadTestnet.nativeCurrency,
+                    rpcUrls: monadTestnet.rpcUrls.default.http,
+                blockExplorerUrls: [monadTestnet.blockExplorers.default.url],
+                  },
+                ],
+              });
+
+              await new Promise((resolve) => setTimeout(resolve, 2000));
           return true;
         }
 
-        throw new Error(
-          `Please switch to Monad Testnet (Chain ID: ${monadTestnet.id})`
-        );
+            throw new Error(
+              `Please switch to Monad Testnet (Chain ID: ${monadTestnet.id})`
+            );
       }
     } catch (err) {
       console.error("Chain switch error:", err);
@@ -265,15 +265,15 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
       return;
     }
 
-    setIsCreating(true);
-    setError(null);
+      setIsCreating(true);
+      setError(null);
 
     try {
       const smartAccountAddress = await createSmartAccountWithWallet();
 
       // Save to storage
-      SmartAccountStorage.save(address, {
-        address: smartAccountAddress as `0x${string}`,
+        SmartAccountStorage.save(address, {
+          address: smartAccountAddress as `0x${string}`,
         type: "eoa",
         eoaOwner: address,
       });
@@ -338,7 +338,7 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
                 {currentStep === "method_selection" && "Get Started"}
                 {currentStep === "wallet_connection" && "Connect Wallet"}
                 {currentStep === "account_creation" && "Create Smart Account"}
-              </h2>
+          </h2>
               <p className="text-gray-400 text-sm">
                 {currentStep === "method_selection" &&
                   "Choose how you want to set up your account"}
@@ -349,34 +349,34 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
               </p>
             </div>
             {!isCreating && !isConnecting && (
-              <button
-                onClick={handleClose}
+            <button
+              onClick={handleClose}
                 className="text-gray-400 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-full"
-                aria-label="Close"
+              aria-label="Close"
+            >
+              <svg
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
               >
-                <svg
-                  className="w-6 h-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            )}
-          </div>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          )}
+        </div>
 
           <div className="space-y-6">
             {/* Step 1: Method Selection */}
             {currentStep === "method_selection" && (
-              <div className="space-y-4">
+        <div className="space-y-4">
                 {/* Wallet Option */}
-                <button
+              <button
                   onClick={() => {
                     setCurrentStep("wallet_connection");
                   }}
@@ -386,51 +386,51 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
                     <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
                       <svg
                         className="w-6 h-6 text-white"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
                           d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
-                        />
-                      </svg>
-                    </div>
-                    <div className="flex-1">
+                      />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
                         <h3 className="text-lg font-semibold text-white">
                           Connect with Wallet
                         </h3>
                         <span className="bg-blue-500/20 text-blue-400 text-xs px-3 py-1 rounded-full font-medium">
-                          Recommended
-                        </span>
-                      </div>
+                        Recommended
+                      </span>
+                    </div>
                       <p className="text-gray-400 text-sm mb-3">
                         {isFarcasterEnvironment()
                           ? "Use your Farcaster wallet"
                           : "Use MetaMask or other wallet"}
                       </p>
                       <div className="flex items-center gap-2 text-sm text-blue-400">
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M5 13l4 4L19 7"
-                          />
-                        </svg>
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
                         <span>Secure • Quick setup</span>
                       </div>
                     </div>
-                  </div>
-                </button>
+                </div>
+              </button>
 
                 {/* Social Login Option - Coming Soon */}
                 <button
@@ -454,7 +454,7 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
                       </svg>
                     </div>
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
+                  <div className="flex items-center gap-3 mb-2">
                         <h3 className="text-lg font-semibold text-white">
                           Social Login
                         </h3>
@@ -591,40 +591,40 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
                   </p>
                   <p className="text-gray-500 text-xs">
                     Now let&apos;s create your smart account
-                  </p>
-                </div>
+                </p>
+              </div>
 
                 <div className="bg-white/5 rounded-lg p-4 space-y-2">
-                  <div className="flex items-center gap-2 text-sm text-gray-300">
-                    <svg
-                      className="w-5 h-5 text-green-500"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                    <span>Gasless transactions</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-gray-300">
-                    <svg
-                      className="w-5 h-5 text-green-500"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
+                <div className="flex items-center gap-2 text-sm text-gray-300">
+                  <svg
+                    className="w-5 h-5 text-green-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                  <span>Gasless transactions</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-300">
+                  <svg
+                    className="w-5 h-5 text-green-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
                     <span>Enhanced security with delegation</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm text-gray-300">
@@ -642,69 +642,69 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
                       />
                     </svg>
                     <span>AI-powered yield optimization</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-gray-300">
-                    <svg
-                      className="w-5 h-5 text-green-500"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-300">
+                  <svg
+                    className="w-5 h-5 text-green-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
                     <span>Batch multiple transactions</span>
                   </div>
-                </div>
+              </div>
 
-                {error && (
-                  <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
-                    <p className="text-red-400 text-sm">{error}</p>
-                  </div>
-                )}
+              {error && (
+                <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
+                  <p className="text-red-400 text-sm">{error}</p>
+                </div>
+              )}
 
                 <div className="flex gap-4">
-                  <button
+                <button
                     onClick={handleBack}
-                    disabled={isCreating}
+                  disabled={isCreating}
                     className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white py-4 rounded-xl font-medium transition-all duration-300 disabled:opacity-50"
-                  >
-                    Back
-                  </button>
-                  <button
+                >
+                  Back
+                </button>
+                <button
                     onClick={handleCreateSmartAccount}
-                    disabled={isCreating}
+                  disabled={isCreating}
                     className="flex-1 bg-white text-black hover:bg-gray-100 py-4 rounded-xl font-semibold transition-all duration-300 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isCreating ? (
+                >
+                  {isCreating ? (
                       <span className="flex items-center justify-center gap-3">
                         <div className="w-5 h-5 border-2 border-black/20 border-t-black rounded-full animate-spin"></div>
                         <span>Creating...</span>
                       </span>
                     ) : (
-                      <span className="flex items-center justify-center gap-2">
-                        <svg
+                    <span className="flex items-center justify-center gap-2">
+                      <svg
                           className="w-5 h-5"
-                          fill="none"
+                        fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
                         >
-                          <path
+                        <path
                             strokeLinecap="round"
                             strokeLinejoin="round"
                             strokeWidth={2}
                             d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                          />
-                        </svg>
+                        />
+                      </svg>
                         Create Smart Account
-                      </span>
-                    )}
-                  </button>
-                </div>
+                    </span>
+                  )}
+                </button>
+              </div>
 
                 <p className="text-sm text-gray-400 text-center">
                   Your smart account will be deployed on Monad Testnet

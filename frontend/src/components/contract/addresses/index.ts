@@ -1,18 +1,19 @@
 // Contract addresses for Monad Testnet
 export const CONTRACT_ADDRESSES = {
-  // Multi-Token Vaults - Deployed for each supported token
-  USDC_VAULT: "0x50888e2e57d8E17A5D0D3F72eFc71a239F6EEff6", // USDC Vault ✅
-  WBTC_VAULT: "0x265F78F4F74193D58387D3EE84AB7c95A90e3D49", // WBTC Vault ✅
-  CURR_VAULT: "0x0000000000000000000000000000000000000000", // CURR Vault - Pending deployment
-  MOCK_USDC_VAULT: "0x63F57C1588FdaE25c2300b2a36c90fd346C79966", // MockUSDC Vault (original) ✅
+  // Multi-Token Coordinator Vault (Main Entry Point)
+  MULTI_TOKEN_COORDINATOR: "0xeEF3B2FD12aC762Eb67a38d160f6DBA1dEbCaAd3", // Main coordinator vault ✅
 
-  // Legacy contracts
+  // Individual Token Vaults (Managed by Coordinator)
+  USDC_VAULT: "0x55B0C512e8F76B5B207FF40D84D3671C6c66F2b8", // USDC Vault ✅
+  WBTC_VAULT: "0x2D036F0B67b5bc85c800acEef8f473A9498a0CaC", // WBTC Vault ✅
+  CURR_VAULT: "0x1492F4795592BEfb306699165661d29CC12559D5", // CURR Vault ✅
+  MOCK_USDC_VAULT: "0x24CFaa279a88333D0268B243d316e75BA4FD0A17", // MockUSDC Vault ✅
+
+  // Legacy contracts (for backward compatibility)
   FI_YIELD_VAULT: "0x63F57C1588FdaE25c2300b2a36c90fd346C79966", // Original vault (MockUSDC only)
-  AGENT_EXECUTOR: "0x450F647bBBcc258096846e923bD35E70672B4170", // Agent deployed ✅
+  AGENT_EXECUTOR: "0xfF763b9CdF6deb0Cf794c1686102FE0626cEBc70", // New Agent deployed ✅
   AAVE_STRATEGY: "0x2f9b9B5d5eD1d288375B8D19A093A418D1977804", // Strategy deployed ✅
   MOCK_AAVE_POOL: "0xC3854a5F6ff5002b0f0192A96339c1aD77b52AFC", // Mock pool deployed ✅
-  // Legacy names for backward compatibility
-  FI_YIELD_VAULT_LEGACY: "0x63F57C1588FdaE25c2300b2a36c90fd346C79966", // Points to FI_YIELD_VAULT
   SIMPLE_HOLD_STRATEGY: "0x2f9b9B5d5eD1d288375B8D19A093A418D1977804", // Points to AAVE_STRATEGY
 
   // Asset addresses for Monad Testnet

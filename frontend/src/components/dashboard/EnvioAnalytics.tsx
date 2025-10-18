@@ -262,9 +262,6 @@ export const VaultStatistics: React.FC = () => {
   );
 };
 
-// ===========================================
-// REAL-TIME ACTIVITY SUBSCRIPTION
-// ===========================================
 
 export const RealTimeActivityFeed: React.FC = () => {
   const { activity, loading, error } = useActivitySubscription();
