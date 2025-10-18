@@ -125,7 +125,7 @@ const WelcomeFlow: React.FC<WelcomeFlowProps> = ({ onComplete }) => {
   const progressPercentage = ((currentStep + 1) / questions.length) * 100;
 
   return (
-    <div className="md:h-screen sm:px-6 lg:px-8 flex md:items-center md:justify-center mt-15 md:mt-0">
+    <div className="md:h-screen sm:px-6 lg:px-8 flex md:items-center md:justify-center pt-15 md:mt-0">
       <div className="w-full">
         {/* Main Card */}
         <div className=" rounded shadow-xl overflow-hidden">

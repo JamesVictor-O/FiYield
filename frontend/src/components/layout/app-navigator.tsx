@@ -58,10 +58,13 @@ export default function AppNavigation() {
         >
           {/* Mobile sidebar header */}
           <div className="flex items-center justify-between p-6 border-b border-white/10">
-            <div className="flex items-center gap-3">
+            <Link
+              href="/"
+              className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+            >
               <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center">
                 <Image
-                  src="/Logo.png"
+                  src="/logo2.png"
                   alt="FiYield Logo"
                   width={20}
                   height={20}
@@ -71,7 +74,7 @@ export default function AppNavigation() {
               <span className="text-lg font-bold text-white font-pop">
                 FiYield
               </span>
-            </div>
+            </Link>
             <button
               onClick={() => setSidebarOpen(false)}
               className="p-2 rounded-lg hover:bg-white/5 transition-colors duration-300"
@@ -129,10 +132,13 @@ export default function AppNavigation() {
       <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-64 lg:flex-col">
         <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-[#101110] border-r border-white/10 px-6 py-6">
           {/* Logo */}
-          <div className="flex items-center gap-3 mb-8">
+          <Link
+            href="/"
+            className="flex items-center gap-3 mb-8 hover:opacity-80 transition-opacity"
+          >
             <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center">
               <Image
-                src="/Logo.png"
+                src="/logo2.png"
                 alt="FiYield Logo"
                 width={20}
                 height={20}
@@ -142,7 +148,7 @@ export default function AppNavigation() {
             <span className="text-lg font-bold text-white font-pop">
               FiYield
             </span>
-          </div>
+          </Link>
 
           {/* Navigation */}
           <nav className="flex flex-1 flex-col">
