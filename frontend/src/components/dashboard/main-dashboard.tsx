@@ -79,7 +79,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
 
   const availableStrategies = useAvailableStrategies();
 
-  // Get real-time APY from our deployed MockAavePool
+  
   const {} = useMockAavePoolAPY();
 
   // Get Aave strategy balance
@@ -252,11 +252,11 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {/* Total Portfolio */}
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:border-white/20 transition-colors duration-300">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+          <div className="bg-white/5 border h-fit border-white/10 rounded-2xl p-2 md:p-6 hover:border-white/20 transition-colors duration-300">
+            <div className="flex items-center gap-3 md:mb-4">
+              <div className="w-10 h-10 rounded-full hidden md:flex bg-white/5 border border-white/10 items-center justify-center">
                 <svg
                   className="w-5 h-5 text-white"
                   fill="none"
@@ -283,9 +283,9 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
           </div>
 
           {/* Current Earnings */}
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:border-white/20 transition-colors duration-300">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+          <div className="bg-white/5 border h-fit border-white/10 rounded-2xl p-2 md:p-6 hover:border-white/20 transition-colors duration-300">
+            <div className="flex items-center gap-3 md:mb-4">
+              <div className="w-10 h-10 hidden md:flex rounded-full bg-white/5 border border-white/10  items-center justify-center">
                 <svg
                   className="w-5 h-5 text-green-400"
                   fill="none"
@@ -323,9 +323,9 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
           </div>
 
           {/* Risk Level */}
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:border-white/20 transition-colors duration-300">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+          <div className="bg-white/5 border h-fit border-white/10 rounded-2xl p-2 md:p-6 hover:border-white/20 transition-colors duration-300">
+            <div className="flex items-center gap-3 md:mb-4">
+              <div className="w-10 hidden md:flex h-10 rounded-full bg-white/5 border border-white/10  items-center justify-center">
                 <svg
                   className="w-5 h-5 text-white"
                   fill="none"
@@ -344,7 +344,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
                 <p className="text-sm text-gray-400 font-medium">
                   Risk Profile
                 </p>
-                <h3 className="text-2xl font-bold text-white font-pop capitalize">
+                <h3 className=" text-sm md:text-2xl font-bold text-white font-pop capitalize">
                   {user.riskProfile || "moderate"}
                 </h3>
               </div>
@@ -352,9 +352,9 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
           </div>
 
           {/* Active Strategy */}
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:border-white/20 transition-colors duration-300">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+          <div className="bg-white/5 border h-fit border-white/10 rounded-2xl p-2 md:p-6 hover:border-white/20 transition-colors duration-300">
+            <div className="flex  items-center gap-3 md:mb-4">
+              <div className="w-10 h-10 hidden md:flex rounded-full bg-white/5 border border-white/10 items-center justify-center">
                 <svg
                   className="w-5 h-5 text-white"
                   fill="none"
