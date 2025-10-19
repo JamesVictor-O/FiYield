@@ -8,15 +8,15 @@ import {
   DialogTitle,
 } from "../../ui/dialog";
 import { Button } from "../../ui/button";
-import { Badge } from "../../ui/badge";
+import { useVaultBalance } from "@/hooks/contract/useVault";
+import { formatEther } from "viem";
 
 interface AIDelegationModalProps {
   isOpen: boolean;
   onClose: () => void;
   onDelegate: (preferences: {
-    riskTolerance: string;
-    timeHorizon: string;
-    focus: string[];
+    delegationAmount: number;
+    delegationPercentage: number;
   }) => void;
 }
 
@@ -25,30 +25,44 @@ const AIDelegationModal: React.FC<AIDelegationModalProps> = ({
   onClose,
   onDelegate,
 }) => {
-  const [riskTolerance, setRiskTolerance] = useState("moderate");
-  const [timeHorizon, setTimeHorizon] = useState("medium");
-  const [selectedFocus, setSelectedFocus] = useState<string[]>([]);
+  const [delegationAmount, setDelegationAmount] = useState("");
+  const [delegationPercentage, setDelegationPercentage] = useState(50);
   const [isDelegating, setIsDelegating] = useState(false);
 
-  const focusOptions = [
-    { id: "yield", label: "Maximize Yield", icon: "📈" },
-    { id: "safety", label: "Capital Preservation", icon: "🛡️" },
-    { id: "diversification", label: "Portfolio Diversification", icon: "🌐" },
-    { id: "liquidity", label: "High Liquidity", icon: "💧" },
-    { id: "defi", label: "DeFi Innovation", icon: "⚡" },
-    { id: "staking", label: "Staking Rewards", icon: "🔒" },
-  ];
+  // Get real vault balance
+  const { balance: vaultBalance, isLoading: balanceLoading } =
+    useVaultBalance();
+  const vaultBalanceFormatted = vaultBalance
+    ? formatEther(vaultBalance as bigint)
+    : "0";
 
-  const handleFocusToggle = (focusId: string) => {
-    setSelectedFocus((prev) =>
-      prev.includes(focusId)
-        ? prev.filter((id) => id !== focusId)
-        : [...prev, focusId]
-    );
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setDelegationAmount(value);
+
+    // Calculate percentage based on vault balance
+    if (value && parseFloat(vaultBalanceFormatted) > 0) {
+      const amount = parseFloat(value);
+      const balance = parseFloat(vaultBalanceFormatted);
+      const percentage = Math.round((amount / balance) * 100);
+      setDelegationPercentage(Math.min(percentage, 100));
+    }
+  };
+
+  const handlePercentageChange = (percentage: number) => {
+    setDelegationPercentage(percentage);
+
+    // Calculate amount based on percentage
+    if (parseFloat(vaultBalanceFormatted) > 0) {
+      const balance = parseFloat(vaultBalanceFormatted);
+      const amount = (balance * percentage) / 100;
+      setDelegationAmount(amount.toFixed(2));
+    }
   };
 
   const handleDelegate = async () => {
-    if (selectedFocus.length === 0) return;
+    const amount = parseFloat(delegationAmount);
+    if ((!amount || amount === 0) && delegationPercentage === 0) return;
 
     setIsDelegating(true);
 
@@ -56,238 +70,144 @@ const AIDelegationModal: React.FC<AIDelegationModalProps> = ({
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
     onDelegate({
-      riskTolerance,
-      timeHorizon,
-      focus: selectedFocus,
+      delegationAmount: amount || 0,
+      delegationPercentage,
     });
 
     setIsDelegating(false);
     onClose();
   };
 
-  const mockPortfolioData = {
-    currentAllocation: {
-      USDC: 40,
-      WBTC: 25,
-      ETH: 20,
-      Other: 15,
-    },
-    suggestedAllocation: {
-      USDC: 30,
-      WBTC: 35,
-      ETH: 25,
-      Other: 10,
-    },
-    expectedReturn: 12.5,
-    riskScore: 6.2,
-    strategies: [
-      { name: "Aave Lending", apy: 8.5, allocation: 40 },
-      { name: "Compound Staking", apy: 6.2, allocation: 30 },
-      { name: "Uniswap LP", apy: 15.8, allocation: 20 },
-      { name: "Yearn Vault", apy: 9.1, allocation: 10 },
-    ],
-  };
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-full max-w-xs sm:max-w-md md:max-w-lg p-2 sm:p-6 max-h-[90vh] overflow-y-auto">
         <DialogHeader className="space-y-3">
-          <DialogTitle className="text-2xl font-bold text-gray-900 font-pop">
-            AI Portfolio Delegation
+          <DialogTitle className="text-xl font-pop font-semibold text-gray-900">
+            Delegate to AI
           </DialogTitle>
           <DialogDescription className="text-gray-600 font-pop">
-            Configure your preferences and let our AI optimize your portfolio
-            allocation
+            Set how much you want to delegate to AI for automated portfolio
+            management.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-8">
-          {/* Risk Tolerance */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900 font-pop">
-              Risk Tolerance
-            </h3>
-            <div className="grid grid-cols-3 gap-4">
-              {[
-                {
-                  id: "conservative",
-                  label: "Conservative",
-                  desc: "Low risk, stable returns",
-                },
-                {
-                  id: "moderate",
-                  label: "Moderate",
-                  desc: "Balanced risk/reward",
-                },
-                {
-                  id: "aggressive",
-                  label: "Aggressive",
-                  desc: "High risk, high potential",
-                },
-              ].map((option) => (
+        <div className="space-y-6">
+          {/* Current Balance */}
+          <div className="border border-gray-200 rounded-lg p-4">
+            <p className="text-sm text-gray-500 font-pop mb-1">
+              Available for Delegation
+            </p>
+            <p className="text-2xl font-pop font-semibold text-gray-900">
+              {balanceLoading ? (
+                <div className="w-20 h-8 bg-gray-200 animate-pulse rounded"></div>
+              ) : (
+                `$${parseFloat(vaultBalanceFormatted).toLocaleString()} USDC`
+              )}
+            </p>
+          </div>
+
+          {/* Amount Input */}
+          <div className="space-y-3">
+            <label className="text-sm font-pop font-medium text-gray-700">
+              Delegation Amount (USDC)
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-pop">
+                $
+              </span>
+              <input
+                type="number"
+                placeholder="0.00"
+                value={delegationAmount}
+                onChange={handleAmountChange}
+                className="pl-8 w-full h-12 text-lg font-pop border-gray-300 focus:border-gray-900 focus:ring-0 rounded-lg"
+                disabled={isDelegating}
+                min="0"
+                step="0.01"
+              />
+            </div>
+          </div>
+
+          {/* Quick Amount Buttons */}
+          <div className="space-y-3">
+            <label className="text-sm font-pop font-medium text-gray-700">
+              Quick Delegation
+            </label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {[25, 50, 75, 100].map((percentage) => (
                 <button
-                  key={option.id}
-                  onClick={() => setRiskTolerance(option.id)}
-                  className={`p-4 rounded-xl border-2 transition-all duration-300 text-left ${
-                    riskTolerance === option.id
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-gray-200 hover:border-gray-300"
+                  key={percentage}
+                  onClick={() => handlePercentageChange(percentage)}
+                  disabled={isDelegating}
+                  className={`text-sm font-pop border rounded-lg h-10 transition-colors ${
+                    delegationPercentage === percentage
+                      ? "border-gray-900 bg-gray-50 text-gray-900"
+                      : "border-gray-300 hover:border-gray-900 hover:bg-gray-50 text-gray-700"
                   }`}
                 >
-                  <div className="font-semibold text-gray-900">
-                    {option.label}
-                  </div>
-                  <div className="text-sm text-gray-600">{option.desc}</div>
+                  {percentage}%
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Time Horizon */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900 font-pop">
-              Investment Time Horizon
-            </h3>
-            <div className="grid grid-cols-3 gap-4">
-              {[
-                { id: "short", label: "Short Term", desc: "1-6 months" },
-                {
-                  id: "medium",
-                  label: "Medium Term",
-                  desc: "6 months - 2 years",
-                },
-                { id: "long", label: "Long Term", desc: "2+ years" },
-              ].map((option) => (
-                <button
-                  key={option.id}
-                  onClick={() => setTimeHorizon(option.id)}
-                  className={`p-4 rounded-xl border-2 transition-all duration-300 text-left ${
-                    timeHorizon === option.id
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-gray-200 hover:border-gray-300"
-                  }`}
-                >
-                  <div className="font-semibold text-gray-900">
-                    {option.label}
-                  </div>
-                  <div className="text-sm text-gray-600">{option.desc}</div>
-                </button>
-              ))}
+          {/* Percentage Slider */}
+          <div className="space-y-3">
+            <label className="text-sm font-pop font-medium text-gray-700">
+              Percentage of Portfolio
+            </label>
+            <div className="flex items-center space-x-3">
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={delegationPercentage}
+                onChange={(e) => handlePercentageChange(Number(e.target.value))}
+                className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                disabled={isDelegating}
+              />
+              <span className="text-sm font-semibold text-gray-900 w-12 text-center">
+                {delegationPercentage}%
+              </span>
             </div>
           </div>
 
-          {/* Focus Areas */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900 font-pop">
-              Investment Focus (Select multiple)
-            </h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {focusOptions.map((option) => (
-                <button
-                  key={option.id}
-                  onClick={() => handleFocusToggle(option.id)}
-                  className={`p-4 rounded-xl border-2 transition-all duration-300 text-left ${
-                    selectedFocus.includes(option.id)
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-gray-200 hover:border-gray-300"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{option.icon}</span>
-                    <span className="font-semibold text-gray-900">
-                      {option.label}
-                    </span>
-                  </div>
-                </button>
-              ))}
+          {/* Transaction Details */}
+          <div className="border border-gray-200 rounded-lg p-4 space-y-3">
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500 font-pop">Delegation Amount</span>
+              <span className="font-pop font-medium text-gray-900">
+                $
+                {delegationAmount
+                  ? parseFloat(delegationAmount).toLocaleString()
+                  : "0.00"}
+              </span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500 font-pop">Percentage</span>
+              <span className="font-pop font-medium text-gray-900">
+                {delegationPercentage}%
+              </span>
+            </div>
+            <div className="border-t border-gray-200 pt-3 flex justify-between text-sm font-pop font-semibold">
+              <span>AI Control</span>
+              <span className="text-emerald-600">
+                {delegationPercentage > 0 ? "Active" : "Inactive"}
+              </span>
             </div>
           </div>
 
-          {/* AI Recommendations Preview */}
-          <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl p-6">
-            <h3 className="text-lg font-semibold text-gray-900 font-pop mb-4">
-              AI Portfolio Preview
-            </h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Current vs Suggested Allocation */}
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-3">
-                  Portfolio Allocation
-                </h4>
-                <div className="space-y-3">
-                  {Object.entries(mockPortfolioData.suggestedAllocation).map(
-                    ([asset, percentage]) => (
-                      <div
-                        key={asset}
-                        className="flex items-center justify-between"
-                      >
-                        <span className="text-sm text-gray-600">{asset}</span>
-                        <div className="flex items-center gap-2">
-                          <div className="w-24 bg-gray-200 rounded-full h-2">
-                            <div
-                              className="bg-blue-500 h-2 rounded-full"
-                              style={{ width: `${percentage}%` }}
-                            ></div>
-                          </div>
-                          <span className="text-sm font-semibold text-gray-900">
-                            {percentage}%
-                          </span>
-                        </div>
-                      </div>
-                    )
-                  )}
-                </div>
-              </div>
-
-              {/* Strategy Breakdown */}
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-3">
-                  Recommended Strategies
-                </h4>
-                <div className="space-y-2">
-                  {mockPortfolioData.strategies.map((strategy, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-2 bg-white rounded-lg"
-                    >
-                      <div>
-                        <div className="font-medium text-gray-900">
-                          {strategy.name}
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          {strategy.allocation}% allocation
-                        </div>
-                      </div>
-                      <Badge className="bg-green-100 text-green-800">
-                        {strategy.apy}% APY
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-2 gap-4">
-              <div className="bg-white rounded-lg p-4">
-                <div className="text-sm text-gray-600">
-                  Expected Annual Return
-                </div>
-                <div className="text-2xl font-bold text-green-600">
-                  {mockPortfolioData.expectedReturn}%
-                </div>
-              </div>
-              <div className="bg-white rounded-lg p-4">
-                <div className="text-sm text-gray-600">Risk Score</div>
-                <div className="text-2xl font-bold text-orange-600">
-                  {mockPortfolioData.riskScore}/10
-                </div>
-              </div>
-            </div>
+          {/* Info Message */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <p className="text-sm text-blue-800 font-pop">
+              <strong>🤖 AI Delegation:</strong> The AI will automatically
+              manage your delegated funds using advanced strategies to maximize
+              yield while managing risk.
+            </p>
           </div>
         </div>
 
-        <DialogFooter className="flex flex-col-reverse sm:flex-row gap-3 w-full mt-6 pt-4 border-t border-gray-200">
+        <DialogFooter className="flex flex-col-reverse sm:flex-row gap-3 w-full mt-6 pt-4 border-t border-gray-200 sticky bottom-0 bg-white">
           <Button
             variant="outline"
             onClick={onClose}
@@ -298,14 +218,18 @@ const AIDelegationModal: React.FC<AIDelegationModalProps> = ({
           </Button>
           <Button
             onClick={handleDelegate}
-            disabled={selectedFocus.length === 0 || isDelegating}
-            className="w-full sm:w-auto h-12 font-pop bg-blue-600 hover:bg-blue-700 text-white"
+            disabled={
+              ((!delegationAmount || parseFloat(delegationAmount) === 0) &&
+                delegationPercentage === 0) ||
+              isDelegating
+            }
+            className="w-full sm:w-auto h-12 font-pop bg-gray-900 hover:bg-gray-800 text-white"
           >
             {isDelegating ? (
-              <span className="flex items-center gap-2">
-                <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                 AI is optimizing...
-              </span>
+              </div>
             ) : (
               "Delegate to AI"
             )}
@@ -317,4 +241,3 @@ const AIDelegationModal: React.FC<AIDelegationModalProps> = ({
 };
 
 export default AIDelegationModal;
-

@@ -1,4 +1,8 @@
-import { useWriteContract, useReadContract } from "wagmi";
+import {
+  useWriteContract,
+  useReadContract,
+  useWaitForTransactionReceipt,
+} from "wagmi";
 import { CONTRACT_ADDRESSES } from "@/components/contract/addresses";
 import { parseEther, formatEther } from "viem";
 import MultiTokenCoordinatorVaultABI from "@/components/contract/abis/MultiTokenCoordinatorVault.json";
@@ -7,7 +11,11 @@ import MultiTokenCoordinatorVaultABI from "@/components/contract/abis/MultiToken
 const MULTI_TOKEN_COORDINATOR_ABI = MultiTokenCoordinatorVaultABI;
 
 export function useMultiTokenCoordinator() {
-  const { writeContract, isPending, error } = useWriteContract();
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isConfirmed } =
+    useWaitForTransactionReceipt({
+      hash,
+    });
 
   const deposit = async (tokenAddress: string, amount: string) => {
     try {
@@ -69,6 +77,8 @@ export function useMultiTokenCoordinator() {
     deposit,
     withdraw,
     isPending,
+    isConfirming,
+    isConfirmed,
     error,
   };
 }

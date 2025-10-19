@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Button } from "../ui/button";
 
 import DepositModal from "@/components/dashboard/modals/deposit-modal";
@@ -66,74 +66,81 @@ const FundsManagement: React.FC<FundsManagementProps> = ({
     }
   }, []);
 
-  const addTransaction = (
-    type: "deposit" | "withdraw" | "send",
-    amount: number
-  ) => {
-    // Ensure amount is a valid positive number
-    const validAmount = Math.abs(Number(amount)) || 0;
+  const addTransaction = useCallback(
+    (
+      type: "deposit" | "withdraw" | "send",
+      amount: number,
+      status: "completed" | "pending" | "failed" = "completed"
+    ) => {
+      // Ensure amount is a valid positive number
+      const validAmount = Math.abs(Number(amount)) || 0;
 
-    const newTransaction: Transaction = {
-      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // More unique ID
-      type,
-      amount: validAmount,
-      timestamp: new Date(),
-      status: "completed",
-    };
+      const newTransaction: Transaction = {
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // More unique ID
+        type,
+        amount: validAmount,
+        timestamp: new Date(),
+        status,
+      };
 
-    // Get existing transactions from localStorage
-    const existingTransactions = JSON.parse(
-      localStorage.getItem("userTransactions") || "[]"
-    );
-
-    // Check for duplicates based on amount, type, and recent timestamp (within 5 seconds)
-    const isDuplicate = existingTransactions.some((tx: Transaction) => {
-      const timeDiff = Math.abs(
-        new Date(tx.timestamp).getTime() - newTransaction.timestamp.getTime()
+      // Get existing transactions from localStorage
+      const existingTransactions = JSON.parse(
+        localStorage.getItem("userTransactions") || "[]"
       );
-      return (
-        tx.type === newTransaction.type &&
-        Math.abs(tx.amount - newTransaction.amount) < 0.01 &&
-        timeDiff < 5000
-      ); // 5 seconds
-    });
 
-    if (isDuplicate) {
-      console.log("Duplicate transaction detected, skipping...");
-      return;
-    }
+      // Check for duplicates based on amount, type, and recent timestamp (within 5 seconds)
+      const isDuplicate = existingTransactions.some((tx: Transaction) => {
+        const timeDiff = Math.abs(
+          new Date(tx.timestamp).getTime() - newTransaction.timestamp.getTime()
+        );
+        return (
+          tx.type === newTransaction.type &&
+          Math.abs(tx.amount - newTransaction.amount) < 0.01 &&
+          timeDiff < 5000
+        ); // 5 seconds
+      });
 
-    // Add new transaction to the beginning of the list
-    const updatedTransactions = [newTransaction, ...recentTransactions].slice(
-      0,
-      5
-    );
-    setRecentTransactions(updatedTransactions);
+      if (isDuplicate) {
+        console.log("Duplicate transaction detected, skipping...");
+        return;
+      }
 
-    // Save to localStorage with new transaction at the beginning
-    const allTransactions = [newTransaction, ...existingTransactions];
+      // Add new transaction to the beginning of the list
+      const updatedTransactions = [newTransaction, ...recentTransactions].slice(
+        0,
+        5
+      );
+      setRecentTransactions(updatedTransactions);
 
-    // Keep only the most recent 20 transactions to prevent localStorage from growing too large
-    const limitedTransactions = allTransactions.slice(0, 20);
-    localStorage.setItem(
-      "userTransactions",
-      JSON.stringify(limitedTransactions)
-    );
-  };
+      // Save to localStorage with new transaction at the beginning
+      const allTransactions = [newTransaction, ...existingTransactions];
 
-  const handleDepositSuccess = (amount: number) => {
-    console.log("Deposit success - amount:", amount, "type:", typeof amount);
-    const validAmount = Number(amount) || 0;
-    onBalanceUpdate((userBalance || 0) + validAmount);
-    addTransaction("deposit", validAmount);
-    setIsDepositOpen(false);
-  };
+      // Keep only the most recent 20 transactions to prevent localStorage from growing too large
+      const limitedTransactions = allTransactions.slice(0, 20);
+      localStorage.setItem(
+        "userTransactions",
+        JSON.stringify(limitedTransactions)
+      );
+    },
+    [recentTransactions]
+  );
+
+  const handleDepositSuccess = useCallback(
+    (amount: number) => {
+      console.log("Deposit success - amount:", amount, "type:", typeof amount);
+      const validAmount = Number(amount) || 0;
+      onBalanceUpdate((userBalance || 0) + validAmount);
+      addTransaction("deposit", validAmount, "completed");
+      setIsDepositOpen(false);
+    },
+    [userBalance, onBalanceUpdate, addTransaction]
+  );
 
   const handleWithdrawSuccess = (amount: number) => {
     console.log("Withdraw success - amount:", amount, "type:", typeof amount);
     const validAmount = Number(amount) || 0;
     onBalanceUpdate((userBalance || 0) - validAmount);
-    addTransaction("withdraw", validAmount);
+    addTransaction("withdraw", validAmount, "completed");
     setIsWithdrawOpen(false);
   };
 
@@ -141,7 +148,7 @@ const FundsManagement: React.FC<FundsManagementProps> = ({
     console.log("Send success - amount:", amount, "type:", typeof amount);
     const validAmount = Number(amount) || 0;
     onBalanceUpdate((userBalance || 0) - validAmount);
-    addTransaction("send", validAmount);
+    addTransaction("send", validAmount, "completed");
     setIsSendOpen(false);
   };
 

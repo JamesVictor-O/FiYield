@@ -46,7 +46,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
   const { totalValue: coordinatorBalance } = useMultiTokenBalance(address);
 
   // Check strategy's total assets to see if funds are there
-  const { data: strategyAssets} = useReadContract({
+  const { data: strategyAssets } = useReadContract({
     address: currentStrategy as `0x${string}`,
     abi: [
       {
@@ -83,8 +83,6 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
       : strategyBalanceFormatted > 0
       ? strategyBalanceFormatted
       : vaultBalanceFormatted || 0;
-
-  
 
   // Load user's initial deposit and risk profile from localStorage
   useEffect(() => {
@@ -437,7 +435,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
           // Here you would implement the actual AI delegation logic
           // For now, we'll just show a success message
           alert(
-            "Portfolio delegated to AI successfully! Your portfolio will be optimized based on your preferences."
+            `Successfully delegated ${preferences.delegationPercentage}% ($${preferences.delegationAmount}) to AI for automated portfolio management.`
           );
         }}
       />

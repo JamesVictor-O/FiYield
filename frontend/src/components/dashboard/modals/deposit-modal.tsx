@@ -29,7 +29,11 @@ interface DepositModalProps {
   currentBalance: number;
 }
 
-const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) => {
+const DepositModal: React.FC<DepositModalProps> = ({
+  isOpen,
+  onClose,
+  onSuccess,
+}) => {
   const [amount, setAmount] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
@@ -52,6 +56,8 @@ const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) => {
   const {
     deposit: coordinatorDeposit,
     isPending: isDepositPending,
+    isConfirming: isDepositConfirming,
+    isConfirmed: isDepositConfirmed,
     error: depositError,
   } = useMultiTokenCoordinator();
 
@@ -78,7 +84,11 @@ const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) => {
   );
 
   // Overall loading state
-  const isLoading = isApprovePending || isApproveConfirming || isDepositPending;
+  const isLoading =
+    isApprovePending ||
+    isApproveConfirming ||
+    isDepositPending ||
+    isDepositConfirming;
 
   const validateAmount = (value: string): boolean => {
     const numValue = parseFloat(value);
@@ -257,8 +267,20 @@ const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) => {
     }
   }, [isLoading, onClose]);
 
-  // Handle deposit success - this will be triggered by the parent component
-  // when the deposit transaction is confirmed
+  // Handle deposit success - trigger when transaction is confirmed
+  useEffect(() => {
+    if (isDepositConfirmed && amount) {
+      setSuccess(true);
+      // Call onSuccess with the deposit amount
+      onSuccess(parseFloat(amount));
+      // Reset form after a delay
+      setTimeout(() => {
+        setAmount("");
+        setSuccess(false);
+        onClose();
+      }, 2000);
+    }
+  }, [isDepositConfirmed, amount, onSuccess, onClose]);
 
   const getStepMessage = () => {
     if (isApprovePending || isApproveConfirming) {
@@ -266,6 +288,9 @@ const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose }) => {
     }
     if (isDepositPending) {
       return "Step 2: Depositing funds...";
+    }
+    if (isDepositConfirming) {
+      return "Step 3: Confirming transaction...";
     }
     return "Processing...";
   };
