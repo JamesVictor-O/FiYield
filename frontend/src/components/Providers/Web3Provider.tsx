@@ -5,10 +5,7 @@ import { defineChain } from "viem";
 import { useEffect } from "react";
 import { RainbowKitProvider, getDefaultConfig } from "@rainbow-me/rainbowkit";
 import "@rainbow-me/rainbowkit/styles.css";
-import {
-  initializeMetaMaskProvider,
-  suppressProviderConflictErrors,
-} from "@/lib/metamask/provider";
+import { suppressProviderConflictErrors } from "@/lib/metamask/provider";
 
 // Define Monad Testnet chain with CORRECT chain ID
 export const monadTestnet = defineChain({
@@ -60,9 +57,6 @@ export default function Web3Provider({
 }) {
   // Handle wallet provider conflicts
   useEffect(() => {
-    // Initialize MetaMask provider handling
-    initializeMetaMaskProvider();
-
     // Suppress provider conflict errors
     const restoreErrorHandler = suppressProviderConflictErrors();
 

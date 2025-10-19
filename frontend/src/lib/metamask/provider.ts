@@ -1,24 +1,4 @@
-
-
-// Store the original ethereum provider
-let originalEthereumProvider: any = null;
-
-
-export function initializeMetaMaskProvider() {
-  // Store the original provider if it exists
-  if (typeof window !== "undefined" && window.ethereum) {
-    originalEthereumProvider = window.ethereum;
-  }
-
-  // Listen for provider changes
-  if (typeof window !== "undefined") {
-    window.addEventListener("ethereum#initialized", () => {
-      if (window.ethereum && !originalEthereumProvider) {
-        originalEthereumProvider = window.ethereum;
-      }
-    });
-  }
-}
+// MetaMask provider detection utilities
 
 /**
  * Get the MetaMask provider, ensuring it's available for delegation toolkit
@@ -28,15 +8,25 @@ export function getMetaMaskProvider() {
     return null;
   }
 
-  // If window.ethereum exists, use it
-  if (window.ethereum) {
+  // Check if window.ethereum is MetaMask specifically
+  if (window.ethereum && window.ethereum.isMetaMask) {
     return window.ethereum;
   }
 
- 
-  if (originalEthereumProvider) {
-    window.ethereum = originalEthereumProvider;
-    return originalEthereumProvider;
+  // Check if there are multiple providers and find MetaMask
+  if (window.ethereum && window.ethereum.providers) {
+    const metamaskProvider = window.ethereum.providers.find(
+      (provider: any) => provider.isMetaMask
+    );
+    if (metamaskProvider) {
+      return metamaskProvider;
+    }
+  }
+
+  // Last resort - use window.ethereum even if not MetaMask
+  if (window.ethereum) {
+    console.warn("Using non-MetaMask provider for delegation toolkit");
+    return window.ethereum;
   }
 
   return null;
@@ -49,13 +39,12 @@ export function isMetaMaskAvailable(): boolean {
   return getMetaMaskProvider() !== null;
 }
 
-
 export async function getMetaMaskProviderSafe() {
   const provider = getMetaMaskProvider();
 
   if (!provider) {
     throw new Error(
-      "MetaMask not available. Please install MetaMask extension."
+      "MetaMask not available. Please install MetaMask extension and refresh the page."
     );
   }
 
@@ -64,6 +53,9 @@ export async function getMetaMaskProviderSafe() {
     console.warn(
       "Provider is not MetaMask, but using it anyway for delegation toolkit"
     );
+    console.log("Current provider:", provider);
+  } else {
+    console.log("✅ Using MetaMask provider for smart account creation");
   }
 
   return provider;
@@ -85,10 +77,12 @@ export function suppressProviderConflictErrors() {
       message.includes(
         "MetaMask encountered an error setting the global Ethereum provider"
       ) ||
-      message.includes("which has only a getter")
+      message.includes("which has only a getter") ||
+      message.includes("Cannot set property ethereum of #<Window>")
     ) {
       // These errors are expected when multiple wallet providers are present
-      // Privy handles this gracefully
+      // and we try to modify window.ethereum directly
+      console.log("ℹ️ Suppressed expected wallet provider conflict error");
       return;
     }
 

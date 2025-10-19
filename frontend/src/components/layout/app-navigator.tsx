@@ -14,7 +14,10 @@ import {
   TrendingUp,
   Shield,
   LogOut,
+  Copy,
+  ExternalLink,
 } from "lucide-react";
+import { SmartAccountStorage } from "@/lib/storage/smartAccount";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: BarChart3 },
@@ -26,16 +29,38 @@ const navigation = [
 
 export default function AppNavigation() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
   const pathname = usePathname();
   const { address } = useAccount();
   const { disconnect } = useDisconnect();
 
+  // Get smart account address instead of wallet address
+  const smartAccountAddress = address
+    ? SmartAccountStorage.getAddress(address)
+    : null;
+  const displayAddress = smartAccountAddress || address;
+
   const getDisplayAddress = (): string | undefined => {
-    if (!address) return undefined;
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+    if (!displayAddress) return undefined;
+    return `${displayAddress.slice(0, 6)}...${displayAddress.slice(-4)}`;
   };
 
-  const displayAddress = getDisplayAddress();
+  const handleCopyAddress = async () => {
+    if (!displayAddress) return;
+
+    try {
+      await navigator.clipboard.writeText(displayAddress);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy address:", err);
+    }
+  };
+
+  const getExplorerUrl = () => {
+    if (!displayAddress) return "#";
+    return `https://testnet.monadexplorer.com/address/${displayAddress}`;
+  };
 
   return (
     <>
@@ -110,13 +135,42 @@ export default function AppNavigation() {
               <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
                 <div className="w-2 h-2 bg-green-400 rounded-full"></div>
               </div>
-              <div>
+              <div className="flex-1">
                 <p className="text-sm font-medium text-white">
-                  {displayAddress ?? "Connect Wallet"}
+                  {getDisplayAddress() ?? "Connect Wallet"}
                 </p>
-                <p className="text-xs text-gray-400">Connected</p>
+                <p className="text-xs text-gray-400">
+                  {smartAccountAddress ? "Smart Account" : "Wallet"}
+                </p>
               </div>
+              {displayAddress && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleCopyAddress}
+                    className="p-2 rounded-lg hover:bg-white/5 transition-colors duration-300"
+                    title="Copy address"
+                  >
+                    <Copy className="w-4 h-4 text-gray-400 hover:text-white" />
+                  </button>
+                  <a
+                    href={getExplorerUrl()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 rounded-lg hover:bg-white/5 transition-colors duration-300"
+                    title="View on Monad Explorer"
+                  >
+                    <ExternalLink className="w-4 h-4 text-gray-400 hover:text-white" />
+                  </a>
+                </div>
+              )}
             </div>
+            {copied && (
+              <div className="mb-3 p-2 bg-green-500/20 border border-green-500/30 rounded-lg">
+                <p className="text-xs text-green-400 text-center">
+                  Address copied!
+                </p>
+              </div>
+            )}
             <button
               onClick={() => disconnect()}
               className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors duration-300"
@@ -178,13 +232,42 @@ export default function AppNavigation() {
                 <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
                   <div className="w-2 h-2 bg-green-400 rounded-full"></div>
                 </div>
-                <div>
+                <div className="flex-1">
                   <p className="text-sm font-medium text-white">
-                    {displayAddress ?? "Connect Wallet"}
+                    {getDisplayAddress() ?? "Connect Wallet"}
                   </p>
-                  <p className="text-xs text-gray-400">Connected</p>
+                  <p className="text-xs text-gray-400">
+                    {smartAccountAddress ? "Smart Account" : "Wallet"}
+                  </p>
                 </div>
+                {displayAddress && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleCopyAddress}
+                      className="p-2 rounded-lg hover:bg-white/5 transition-colors duration-300"
+                      title="Copy address"
+                    >
+                      <Copy className="w-4 h-4 text-gray-400 hover:text-white" />
+                    </button>
+                    <a
+                      href={getExplorerUrl()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2 rounded-lg hover:bg-white/5 transition-colors duration-300"
+                      title="View on Monad Explorer"
+                    >
+                      <ExternalLink className="w-4 h-4 text-gray-400 hover:text-white" />
+                    </a>
+                  </div>
+                )}
               </div>
+              {copied && (
+                <div className="mb-3 p-2 bg-green-500/20 border border-green-500/30 rounded-lg">
+                  <p className="text-xs text-green-400 text-center">
+                    Address copied!
+                  </p>
+                </div>
+              )}
               <button
                 onClick={() => disconnect()}
                 className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors duration-300"
@@ -216,7 +299,7 @@ export default function AppNavigation() {
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 <span className="text-sm font-medium">
-                  {displayAddress ?? "Connect"}
+                  {getDisplayAddress() ?? "Connect"}
                 </span>
               </div>
             </div>
