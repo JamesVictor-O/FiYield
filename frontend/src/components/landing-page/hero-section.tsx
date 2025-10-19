@@ -24,7 +24,7 @@ const HeroSection = () => {
             <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-gray-300 mb-8 sm:mb-12 max-w-4xl mx-auto leading-relaxed px-2 sm:px-0 animate-fade-in-up delay-400">
               Earn from DeFi without the complexity{" "}
               <span className="font-semibold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-              FiYield&apos;s AI
+                FiYield&apos;s AI
               </span>{" "}
               does all the work for you. You just deposit and relax.
             </p>
@@ -33,7 +33,7 @@ const HeroSection = () => {
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center items-center mb-8 sm:mb-12 px-4 animate-fade-in-up delay-600">
               <Button
                 asChild
-                className="bg-white text-black px-6 sm:px-8 py-3 sm:py-4 rounded-lg text-base sm:text-lg font-semibold transition-all duration-300 transform   w-full sm:w-auto"
+                className="bg-white text-black hover:bg-gray-100 hover:text-black px-6 sm:px-8 py-3 sm:py-4 rounded-lg text-base sm:text-lg font-semibold transition-all duration-300 transform hover:scale-105 w-full sm:w-auto"
               >
                 <a
                   href="/dashboard"
