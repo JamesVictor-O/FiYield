@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { useAccount, useConnect, useDisconnect } from "wagmi";
-import { createPublicClient, http, keccak256, toHex } from "viem";
+import { createPublicClient, http, keccak256, toHex, custom } from "viem";
+import { createBundlerClient } from "viem/account-abstraction";
 import {
   Implementation,
   toMetaMaskSmartAccount,
@@ -141,9 +142,22 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
       throw new Error("Failed to switch to Monad Testnet");
     }
 
-    const publicClient = createPublicClient({
+    const MONAD_RPC_URL =
+      process.env.NEXT_PUBLIC_MONAD_RPC_URL || "https://testnet-rpc.monad.xyz";
+    const BUNDLER_RPC_URL = process.env.NEXT_PUBLIC_BUNDLER_RPC_URL;
+
+    // Build both clients: injected (EIP-1193) and HTTP
+    const injectedProvider = await getMetaMaskProviderSafe();
+    const injectedClient = injectedProvider
+      ? createPublicClient({
+          chain: monadTestnet,
+          transport: custom(injectedProvider),
+        })
+      : null;
+
+    const httpClient = createPublicClient({
       chain: monadTestnet,
-      transport: http("https://testnet-rpc.monad.xyz"),
+      transport: http(MONAD_RPC_URL),
     });
 
     // Generate deterministic salt from owner address
@@ -154,15 +168,14 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
       chainId: monadTestnet.id,
       ownerAddress: address,
       salt,
-    });
+    })
 
     try {
       // Ensure we're using MetaMask provider
       const provider = await getMetaMaskProviderSafe();
-      console.log("Using MetaMask provider:", provider.isMetaMask);
-
+       
       const smartAccount = await toMetaMaskSmartAccount({
-        client: publicClient,
+        client: injectedClient ?? httpClient,
         implementation: Implementation.Hybrid,
         deployParams: [address, [], [], []], // EOA owner, no passkeys
         deploySalt: salt,
@@ -207,12 +220,27 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
         },
       });
 
-      console.log("✅ Smart account created:", smartAccount.address);
+     
 
       // Check deployment status
-      const code = await publicClient.getBytecode({
-        address: smartAccount.address as `0x${string}`,
-      });
+      // Prefer injected provider for reads to avoid CORS; fall back to HTTP
+      let code: string | undefined;
+      try {
+        if (injectedClient) {
+          code = await injectedClient.getBytecode({
+            address: smartAccount.address as `0x${string}`,
+          });
+        } else {
+          code = await httpClient.getBytecode({
+            address: smartAccount.address as `0x${string}`,
+          });
+        }
+      } catch (e) {
+        // Fallback swap
+        code = await httpClient.getBytecode({
+          address: smartAccount.address as `0x${string}`,
+        });
+      }
 
       const isDeployed = code && code !== "0x";
       console.log("Deployment status:", {
@@ -221,28 +249,77 @@ export const SmartAccountSetup: React.FC<SmartAccountSetupProps> = ({
       });
 
       if (!isDeployed) {
-        console.log("ℹ️ Smart account needs to be deployed on-chain");
+        // If a bundler is configured, deploy via an empty user operation
+        if (BUNDLER_RPC_URL) {
+          try {
+            const bundlerClient = createBundlerClient({
+              client: httpClient,
+              transport: http(BUNDLER_RPC_URL),
+            });
 
-        // Check if user has enough MON for deployment
-        const balance = await publicClient.getBalance({
-          address: address as `0x${string}`,
-        });
+            const userOpHash = await bundlerClient.sendUserOperation({
+              account: smartAccount as any,
+              calls: [], // empty call array triggers deployment only
+            });
 
-        const balanceInMON = Number(balance) / 1e18;
-        console.log("User MON balance:", balanceInMON);
+            await bundlerClient.waitForUserOperationReceipt({ hash: userOpHash });
 
-        if (balanceInMON < 0.001) {
-          throw new Error(
-            "Insufficient MON tokens for smart account deployment. Please get testnet MON from the faucet: https://faucet.monad.xyz/"
-          );
+            // Verify deployment succeeded
+            let deployedCode: string | undefined;
+            try {
+              if (injectedClient) {
+                deployedCode = await injectedClient.getBytecode({
+                  address: smartAccount.address as `0x${string}`,
+                });
+              } else {
+                deployedCode = await httpClient.getBytecode({
+                  address: smartAccount.address as `0x${string}`,
+                });
+              }
+            } catch (e) {
+              deployedCode = await httpClient.getBytecode({
+                address: smartAccount.address as `0x${string}`,
+              });
+            }
+            const nowDeployed = deployedCode && deployedCode !== "0x";
+
+            if (!nowDeployed) {
+              throw new Error(
+                "Smart account deployment via bundler did not finalize. Please try again."
+              );
+            }
+          } catch (bundlerErr: any) {
+            throw new Error(
+              bundlerErr?.message ||
+                "Failed to deploy smart account via bundler. Please try again."
+            );
+          }
+        } else {
+          // No bundler configured: require user to have MON and deploy on first tx
+          let balance: bigint;
+          try {
+            if (injectedClient) {
+              balance = await injectedClient.getBalance({
+                address: address as `0x${string}`,
+              });
+            } else {
+              balance = await httpClient.getBalance({
+                address: address as `0x${string}`,
+              });
+            }
+          } catch (e) {
+            balance = await httpClient.getBalance({
+              address: address as `0x${string}`,
+            });
+          }
+          const balanceInMON = Number(balance) / 1e18;
+
+          if (balanceInMON < 0.001) {
+            throw new Error(
+              "Insufficient MON tokens for smart account deployment. Please get testnet MON from the faucet: https://faucet.monad.xyz/"
+            );
+          }
         }
-
-        console.log("ℹ️ Smart account will be deployed on first transaction");
-        console.log("📝 Smart account address:", smartAccount.address);
-        console.log(
-          "🔗 View on explorer: https://testnet.monadexplorer.com/address/" +
-            smartAccount.address
-        );
       }
 
       return smartAccount.address;

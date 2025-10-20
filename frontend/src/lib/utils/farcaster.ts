@@ -28,16 +28,6 @@ export function isFarcasterEnvironment(): boolean {
     window.location.search.includes("farcaster") ||
     window.location.hash.includes("farcaster");
 
-  // Debug logging
-  console.log("Farcaster Environment Check:", {
-    isFarcasterUA,
-    hasFarcasterSDK,
-    isFarcasterReferrer,
-    isFarcasterMiniapp,
-    userAgent,
-    referrer: document.referrer,
-    url: window.location.href,
-  });
 
   return (
     isFarcasterUA ||
